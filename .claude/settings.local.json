@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx svelte-check:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s -X POST https://uljutwzjsvtwdcbaewqp.supabase.co/rest/v1/rpc/exec_sql -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsanV0d3pqc3Z0d2RjYmFld3FwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTM1MjA1MywiZXhwIjoyMDkwOTI4MDUzfQ.W4XlIuo0r3f5jGpUVUtAF9xCnsBJ5aSuXfNtTr38FpM' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsanV0d3pqc3Z0d2RjYmFld3FwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTM1MjA1MywiZXhwIjoyMDkwOTI4MDUzfQ.W4XlIuo0r3f5jGpUVUtAF9xCnsBJ5aSuXfNtTr38FpM' -H 'Content-Type: application/json')",
+      "Bash(npm list:*)",
+      "Bash(npx supabase:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
