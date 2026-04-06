@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+/* ── Variables globales Nexus LED ─────────────────── */
+:root {
+  --brand:        #2d7a2d;
+  --brand-light:  #4da74d;
+  --brand-dark:   #1a4a1a;
+  --bg:           #080808;
+  --bg-card:      #111111;
+  --bg-card-2:    #161616;
+  --border:       #222222;
+  --border-light: #2a2a2a;
+  --text:         #f0f0f0;
+  --text-muted:   #666666;
+  --text-dim:     #444444;
+  --danger:       #e55;
+  --warning:      #e8a03a;
+  --success:      #4da74d;
+}
+
+/* ── Reset y base ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar oscura */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+/* ── Utilidades globales ──────────────────────────── */
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
