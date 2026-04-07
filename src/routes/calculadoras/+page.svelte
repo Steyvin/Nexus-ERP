@@ -46,11 +46,15 @@
 		cantidad_apliques: 0,
 		apliques: [] as ApliqueNube[],
 		perimetro_manual: 0,
+		faja_grosor_custom: false,
+		faja_ancho_cm: 6,
 		con_vinilo: false,
 		vinilo_ancho_cm: 80,
 		vinilo_alto_cm: 60,
 		con_estructura: false,
 		estructura_personalizada: 0,
+		mdo_personalizada: false,
+		mdo_custom: 0,
 		con_transporte: true
 	})
 
@@ -187,6 +191,24 @@
 						</p>
 					</div>
 
+					<!-- Grosor de faja -->
+					<div>
+						<label class="toggle-row">
+							<input type="checkbox" bind:checked={nube.faja_grosor_custom} class="toggle-check" />
+							<span class="text-sm text-[var(--text)]">Elegir grosor de faja</span>
+						</label>
+						{#if nube.faja_grosor_custom}
+							<div class="mt-2">
+								<label class="label-field">Ancho/grosor de faja (cm)</label>
+								<input type="number" bind:value={nube.faja_ancho_cm} min="1" class="input-calc" />
+							</div>
+						{:else}
+							<p class="mt-1 text-[10px] text-[var(--text-dim)]">
+								Grosor predeterminado: 6 cm
+							</p>
+						{/if}
+					</div>
+
 					<!-- Apliques de acrílico -->
 					<div>
 						<label class="label-field">¿Cuántos apliques de acrílico?</label>
@@ -258,6 +280,25 @@
 									<input type="number" bind:value={nube.estructura_personalizada} min="0" class="input-calc" />
 									<p class="mt-0.5 text-[10px] text-[var(--text-dim)]">0 = usar precio automático</p>
 								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Mano de obra -->
+					<div>
+						<p class="text-sm text-[var(--text)]">Mano de obra</p>
+						<p class="mt-1 text-[10px] text-[var(--text-dim)]">
+							Automático: {Math.max(nube.ancho_cm, nube.alto_cm) <= 80 ? '$100.000' : Math.max(nube.ancho_cm, nube.alto_cm) <= 120 ? '$150.000' : '$200.000'}
+							(mayor lado: {Math.max(nube.ancho_cm, nube.alto_cm)} cm)
+						</p>
+						<label class="toggle-row mt-2">
+							<input type="checkbox" bind:checked={nube.mdo_personalizada} class="toggle-check" />
+							<span class="text-sm text-[var(--text)]">Modificar mano de obra</span>
+						</label>
+						{#if nube.mdo_personalizada}
+							<div class="mt-2">
+								<label class="label-field">Precio mano de obra ($)</label>
+								<input type="number" bind:value={nube.mdo_custom} min="0" class="input-calc" />
 							</div>
 						{/if}
 					</div>

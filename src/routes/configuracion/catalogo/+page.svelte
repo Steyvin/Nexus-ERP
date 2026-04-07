@@ -41,10 +41,19 @@
 	const PARAM_INFO: Record<string, { label: string; sufijo?: string }> = {
 		// Nube
 		precio_cm2_acrilico: { label: 'Precio acrílico', sufijo: '$/cm²' },
-		precio_faja_cm: { label: 'Precio faja', sufijo: '$/cm' },
+		precio_cm2_acrilico_premium: { label: 'Precio acrílico premium', sufijo: '$/cm²' },
+		precio_faja_cm2: { label: 'Precio faja', sufijo: '$/cm²' },
 		separacion_led_cm: { label: 'Separación LED', sufijo: 'cm' },
 		precio_led_m: { label: 'Precio LED', sufijo: '$/metro' },
 		precio_vinilo_m2: { label: 'Vinilo', sufijo: '$/m²' },
+		estructura_pequena: { label: 'Estructura pequeña (≤100cm)', sufijo: '$' },
+		estructura_mediana: { label: 'Estructura mediana (≤140cm)', sufijo: '$' },
+		estructura_grande: { label: 'Estructura grande (>140cm)', sufijo: '$' },
+		transporte_pequeno: { label: 'Transporte pequeño (≤80cm)', sufijo: '$' },
+		transporte_grande: { label: 'Transporte grande (>80cm)', sufijo: '$' },
+		mdo_pequena: { label: 'Mano de obra pequeña (≤80cm)', sufijo: '$' },
+		mdo_mediana: { label: 'Mano de obra mediana (≤120cm)', sufijo: '$' },
+		mdo_grande: { label: 'Mano de obra grande (>120cm)', sufijo: '$' },
 		margen_ganancia: { label: 'Margen de ganancia', sufijo: '%' },
 		// Letra
 		mdo_por_letra: { label: 'MdO por letra', sufijo: '$' },

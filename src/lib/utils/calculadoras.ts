@@ -55,11 +55,15 @@ export interface InputNube {
 	cantidad_apliques: number
 	apliques: ApliqueNube[]
 	perimetro_manual: number       // 0 = calcular automáticamente
+	faja_grosor_custom: boolean    // true = elegir grosor de faja manualmente
+	faja_ancho_cm: number          // grosor/ancho de la faja (default 6 cm)
 	con_vinilo: boolean
 	vinilo_ancho_cm: number
 	vinilo_alto_cm: number
 	con_estructura: boolean
 	estructura_personalizada: number // 0 = usar cálculo automático
+	mdo_personalizada: boolean       // true = ingresar mano de obra manual
+	mdo_custom: number               // valor manual de mano de obra
 	con_transporte: boolean
 }
 
@@ -88,17 +92,16 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 		})
 	}
 
-	// 3. Faja / cantonera (perímetro × alto_faja × $15/cm²)
-	//    El perímetro se calcula como área de la faja: perímetro_lineal × alto_aviso
-	//    Pero según la lógica indicada: perímetro (cm) × precio por cm²
-	//    La faja tiene un ancho (el grosor del aviso), aquí usamos el perímetro × precio_faja_cm2
+	// 3. Faja / cantonera (perímetro × ancho_faja × precio/cm²)
 	const perimetro =
 		i.perimetro_manual > 0
 			? i.perimetro_manual
 			: i.ancho_cm * 2 + i.alto_cm * 2
+	const anchoFaja = i.faja_ancho_cm > 0 ? i.faja_ancho_cm : 6
+	const areaFaja = perimetro * anchoFaja
 	desglose.push({
-		concepto: `Faja (${perimetro} cm perímetro)`,
-		valor: perimetro * p.precio_faja_cm2
+		concepto: `Faja (${perimetro}×${anchoFaja} cm = ${areaFaja} cm²)`,
+		valor: areaFaja * p.precio_faja_cm2
 	})
 
 	// 4. LED serpentina (separación fija, pasadas × ancho → metros)
@@ -133,7 +136,21 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 		desglose.push({ concepto: 'Estructura', valor: valorEstructura })
 	}
 
-	// 7. Transporte (automático por tamaño)
+	// 7. Mano de obra (automática por tamaño o personalizada)
+	{
+		let valorMdo: number
+		if (i.mdo_personalizada && i.mdo_custom > 0) {
+			valorMdo = i.mdo_custom
+		} else {
+			const maxDim = Math.max(i.ancho_cm, i.alto_cm)
+			if (maxDim <= 80) valorMdo = p.mdo_pequena
+			else if (maxDim <= 120) valorMdo = p.mdo_mediana
+			else valorMdo = p.mdo_grande
+		}
+		desglose.push({ concepto: 'Mano de obra', valor: valorMdo })
+	}
+
+	// 8. Transporte (automático por tamaño)
 	if (i.con_transporte) {
 		const maxDim = Math.max(i.ancho_cm, i.alto_cm)
 		const valorTransporte = maxDim > 80 ? p.transporte_grande : p.transporte_pequeno

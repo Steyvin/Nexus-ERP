@@ -178,6 +178,9 @@ export interface ParametrosNube {
   estructura_grande:             number
   transporte_grande:             number
   transporte_pequeno:            number
+  mdo_pequena:                   number
+  mdo_mediana:                   number
+  mdo_grande:                    number
   margen_ganancia:               number
 }
 
