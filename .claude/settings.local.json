@@ -7,7 +7,8 @@
       "Bash(npm list:*)",
       "Bash(npx supabase:*)",
       "Bash(curl:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx svelte-kit:*)"
     ]
   }
 }

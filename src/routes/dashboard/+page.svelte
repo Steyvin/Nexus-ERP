@@ -1,10 +1,30 @@
 <script lang="ts">
+	import { onMount } from 'svelte'
+	import { invalidateAll } from '$app/navigation'
 	import { usuario } from '$lib/stores/auth'
 	import { fmt, fmtRelativa } from '$lib/utils/format'
 	import BarChart from '$lib/components/ui/BarChart.svelte'
+	import { supabase } from '$lib/supabase'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
+
+	// Suscripción en tiempo real: refrescar datos al cambiar pedidos o cotizaciones
+	onMount(() => {
+		const channel = supabase
+			.channel('dashboard-realtime')
+			.on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+				invalidateAll()
+			})
+			.on('postgres_changes', { event: '*', schema: 'public', table: 'cotizaciones' }, () => {
+				invalidateAll()
+			})
+			.subscribe()
+
+		return () => {
+			supabase.removeChannel(channel)
+		}
+	})
 
 	const estadoColor: Record<string, string> = {
 		'Pedido realizado': 'estado-nuevo',

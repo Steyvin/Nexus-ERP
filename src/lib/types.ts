@@ -65,7 +65,7 @@ export interface CatalogoParametros {
   tipo:        TipoProducto
   nombre:      string
   activo:      boolean
-  parametros:  ParametrosNube | ParametrosNeon | ParametrosVinilo | ParametrosAcrilioCircular | Record<string, unknown>
+  parametros:  ParametrosNube | ParametrosLetra | ParametrosNeon | ParametrosVinilo | ParametrosAcrilio | ParametrosAcrilioCircular | Record<string, unknown>
   updated_at:  string
 }
 
@@ -168,20 +168,29 @@ export interface MovimientoFinanciero {
 
 export interface ParametrosNube {
   precio_cm2_acrilico:           number
-  precio_cm2_pvc:                number
-  precio_led_m:                  number
-  precio_faja_m_lineal:          number
-  ancho_faja_normal_cm:          number
-  ancho_faja_grande_cm:          number
+  precio_cm2_acrilico_premium:   number
+  precio_faja_cm2:               number
   separacion_led_cm:             number
-  margen_led:                    number
-  mdo_pequeño:                   number
-  mdo_mediano:                   number
-  mdo_grande:                    number
-  mdo_limite_pequeño_cm:         number
-  mdo_limite_mediano_cm:         number
-  transporte_sin_instalacion:    number
-  transporte_con_instalacion:    number
+  precio_led_m:                  number
+  precio_vinilo_m2:              number
+  estructura_pequena:            number
+  estructura_mediana:            number
+  estructura_grande:             number
+  transporte_grande:             number
+  transporte_pequeno:            number
+  margen_ganancia:               number
+}
+
+export interface ParametrosLetra {
+  precio_led_m:                  number
+  mdo_por_letra:                 number
+  margen_ganancia:               number
+}
+
+export interface ParametrosAcrilio {
+  precio_cm2_acrilico:           number
+  precio_apliques?:              number
+  precio_led_m_perimetro:        number
   margen_ganancia:               number
 }
 

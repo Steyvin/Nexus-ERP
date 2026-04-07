@@ -21,6 +21,7 @@
 		{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 		{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
 		{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
+		{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 		{ href: '/clientes', label: 'Clientes', icon: 'users' },
 		{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 	]
@@ -47,6 +48,7 @@
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
 				{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
+				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 				{ href: '/clientes', label: 'Clientes', icon: 'users' },
 				{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 			]
@@ -176,6 +178,43 @@
 									/><path d="M23 21v-2a4 4 0 00-3-3.87" /><path
 										d="M16 3.13a4 4 0 010 7.75"
 									/></svg
+								>
+							{:else if item.icon === 'calculator'}
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><rect x="4" y="2" width="16" height="20" rx="2" /><line
+										x1="8"
+										y1="6"
+										x2="16"
+										y2="6"
+									/><line x1="8" y1="10" x2="8" y2="10.01" /><line
+										x1="12"
+										y1="10"
+										x2="12"
+										y2="10.01"
+									/><line x1="16" y1="10" x2="16" y2="10.01" /><line
+										x1="8"
+										y1="14"
+										x2="8"
+										y2="14.01"
+									/><line x1="12" y1="14" x2="12" y2="14.01" /><line
+										x1="16"
+										y1="14"
+										x2="16"
+										y2="14.01"
+									/><line x1="8" y1="18" x2="8" y2="18.01" /><line
+										x1="12"
+										y1="18"
+										x2="12"
+										y2="18.01"
+									/><line x1="16" y1="18" x2="16" y2="18.01" /></svg
 								>
 							{:else if item.icon === 'bar-chart'}
 								<svg
