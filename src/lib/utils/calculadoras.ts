@@ -104,6 +104,15 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 		valor: areaFaja * p.precio_faja_cm2
 	})
 
+	// Tapa PVC (base)
+	const areaCm2Base = i.ancho_cm * i.alto_cm;
+	if (p.precio_cm2_pvc > 0 && areaCm2Base > 0) {
+		desglose.push({
+			concepto: `Tapa PVC (${areaCm2Base} cm²)`,
+			valor: areaCm2Base * p.precio_cm2_pvc
+		})
+	}
+
 	// 4. LED serpentina (separación fija, pasadas × ancho → metros)
 	const pasadas = Math.floor(i.alto_cm / p.separacion_led_cm)
 	const largoLedCm = pasadas * i.ancho_cm
@@ -157,10 +166,10 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 		desglose.push({ concepto: 'Transporte', valor: valorTransporte })
 	}
 
-	// Totales: ganancia = 40% sobre costo → precio = costo × 1.40, redondeado a miles
+	// Totales: ganancia sobre el precio de venta (profit margin)
 	const costoFabricacion = desglose.reduce((s, l) => s + l.valor, 0)
-	const ganancia = costoFabricacion * p.margen_ganancia
-	const precioCliente = Math.ceil((costoFabricacion + ganancia) / 1000) * 1000
+	const precioExacto = p.margen_ganancia < 1 ? costoFabricacion / (1 - p.margen_ganancia) : costoFabricacion
+	const precioCliente = Math.ceil(precioExacto / 1000) * 1000
 
 	return {
 		desglose,
@@ -173,27 +182,124 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 // ─── Letra por Letra ─────────────────────────────────────────────────────────
 
 export interface InputLetra {
+	ancho_cm: number
+	alto_cm: number
 	perimetro_cm: number
-	cantidad_letras: number
+	faja_grosor_custom: boolean
+	faja_ancho_cm: number
+	apliques: ApliqueNube[]
+	con_estructura: boolean
+	estructura_personalizada: number
+	mdo_personalizada: boolean
+	mdo_custom: number
+	con_transporte: boolean
+	con_vinilo: boolean
+	vinilo_ancho_cm: number
+	vinilo_alto_cm: number
 }
 
 export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalculo {
 	const desglose: LineaDesglose[] = []
+	const areaCm2 = i.ancho_cm * i.alto_cm
 
-	// LED directo por perímetro
-	const perimetro_m = i.perimetro_cm / 100
-	desglose.push({
-		concepto: 'LED directo',
-		valor: perimetro_m * p.precio_led_m
+	// 1. Tapa Acrílico (Base imaginaria de todas las letras juntas)
+	if (areaCm2 > 0) {
+		desglose.push({
+			concepto: `Acrílico (Bounding Box) (${areaCm2} cm²)`,
+			valor: areaCm2 * p.precio_cm2_acrilico
+		})
+	}
+
+	// 2. Tapa PVC 
+	if (areaCm2 > 0 && p.precio_cm2_pvc > 0) {
+		desglose.push({
+			concepto: `Tapa PVC (${areaCm2} cm²)`,
+			valor: areaCm2 * p.precio_cm2_pvc
+		})
+	}
+
+	// 3. Apliques
+	i.apliques.forEach((ap, idx) => {
+		const ap_area = ap.ancho_cm * ap.alto_cm
+		if (ap_area > 0) {
+			const pr = esColorPremium(ap.color) ? p.precio_cm2_acrilico_premium : p.precio_cm2_acrilico
+			const sub = ap_area * pr
+			desglose.push({ concepto: `Aplique ${idx + 1} (${ap.color})`, valor: sub })
+		}
 	})
 
-	// Mano de obra por letra
-	desglose.push({
-		concepto: `Mano de obra (${i.cantidad_letras} letras)`,
-		valor: i.cantidad_letras * p.mdo_por_letra
-	})
+	// 4. Faja perimetral (Usando el perímetro_m sumado manualmente)
+	if (i.perimetro_cm > 0) {
+		const anchoFaja = i.faja_ancho_cm > 0 ? i.faja_ancho_cm : 6
+		// Dividir tiras por 120cm y aproximar al siguiente entero
+		const numFajas = Math.ceil(i.perimetro_cm / 120)
+		// Fórmula: fajas * grosor * coeficiente
+		const areaCoeficiente = numFajas * anchoFaja
+		desglose.push({
+			concepto: `Faja perimetral (${i.faja_ancho_cm} cm de ancho)`,
+			valor: areaCoeficiente * p.precio_faja_cm2
+		})
+	}
 
-	return resultado(desglose, p.margen_ganancia)
+	// 5. LED directo por perímetro 
+	if (i.perimetro_cm > 0) {
+		// La luz se calcula con la mitad del perímetro en metros
+		const luz_metros = (i.perimetro_cm / 100) / 2
+		desglose.push({
+			concepto: `LED perimetral (${luz_metros.toFixed(2)} m)`,
+			valor: luz_metros * p.precio_led_m
+		})
+	}
+
+	// 6. Vinilo
+	if (i.con_vinilo && i.vinilo_ancho_cm > 0 && i.vinilo_alto_cm > 0) {
+		const area_vinilo_m2 = (i.vinilo_ancho_cm * i.vinilo_alto_cm) / 10000
+		desglose.push({
+			concepto: `Vinilo (${area_vinilo_m2.toFixed(2)} m²)`,
+			valor: area_vinilo_m2 * p.precio_vinilo_m2
+		})
+	}
+
+	// 7. Estructura
+	if (i.con_estructura) {
+		let valorEstructura = 0
+		if (i.estructura_personalizada > 0) {
+			valorEstructura = i.estructura_personalizada
+		} else {
+			const max_dim = Math.max(i.ancho_cm, i.alto_cm)
+			if (max_dim <= 100) valorEstructura = p.estructura_pequena
+			else if (max_dim <= 140) valorEstructura = p.estructura_mediana
+			else valorEstructura = p.estructura_grande
+		}
+		desglose.push({ concepto: 'Estructura', valor: valorEstructura })
+	}
+
+	// 8. Mano de Obra
+	{
+		let valorMdo = 0
+		if (i.mdo_personalizada && i.mdo_custom > 0) {
+			valorMdo = i.mdo_custom
+		} else {
+			const max_dim = Math.max(i.ancho_cm, i.alto_cm)
+			if (max_dim <= 80) valorMdo = p.mdo_pequena
+			else if (max_dim <= 120) valorMdo = p.mdo_mediana
+			else valorMdo = p.mdo_grande
+		}
+		desglose.push({ concepto: 'Mano de Obra', valor: valorMdo })
+	}
+
+	// 9. Transporte
+	if (i.con_transporte) {
+		const max_dim = Math.max(i.ancho_cm, i.alto_cm)
+		const valorTransporte = max_dim > 80 ? p.transporte_grande : p.transporte_pequeno
+		desglose.push({ concepto: 'Transporte', valor: valorTransporte })
+	}
+
+	const costoFabricacion = desglose.reduce((s, l) => s + l.valor, 0)
+	const precioExacto = p.margen_ganancia < 1 ? costoFabricacion / (1 - p.margen_ganancia) : costoFabricacion
+	const precioCliente = Math.ceil(precioExacto / 1000) * 1000
+
+	return { desglose, costoFabricacion, precioCliente, margen: p.margen_ganancia }
 }
 
 // ─── Neon Flex ───────────────────────────────────────────────────────────────

@@ -36,19 +36,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// ── 3. Helper para obtener el perfil completo del usuario ─────────────────
 	event.locals.getUsuario = async () => {
-		const session = await event.locals.getSession()
-		if (!session?.user) return null
+		const { data: { user }, error: authErr } = await event.locals.supabase.auth.getUser()
+		if (authErr || !user) return null
 
 		const { data: perfil, error } = await event.locals.supabase
 			.from('perfiles')
 			.select('*')
-			.eq('id', session.user.id)
+			.eq('id', user.id)
 			.single()
 
 		if (error || !perfil) return null
 
 		// Combina el perfil con el email que viene de auth.users
-		return { ...perfil, email: session.user.email ?? '' }
+		return { ...perfil, email: user.email ?? '' }
 	}
 
 	// ── 4. Protección de rutas ────────────────────────────────────────────────
@@ -56,10 +56,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const esRutaPublica = RUTAS_PUBLICAS.some((r) => pathname.startsWith(r))
 
 	if (!esRutaPublica) {
-		// Ruta protegida: verificar que hay sesión activa
-		const session = await event.locals.getSession()
+		// Ruta protegida: verificar que hay usuario activo de forma segura
+		const { data: { user } } = await event.locals.supabase.auth.getUser()
 
-		if (!session) {
+		if (!user) {
 			// Sin sesión → redirigir a login guardando la ruta destino
 			const destino = encodeURIComponent(pathname)
 			redirect(303, `/login?next=${destino}`)
