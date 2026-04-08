@@ -9,7 +9,7 @@
 </script>
 
 {#if $toasts.length > 0}
-	<div class="fixed right-4 bottom-4 z-[100] flex flex-col gap-2">
+	<div class="fixed right-4 top-20 z-[100] flex flex-col gap-2">
 		{#each $toasts as toast (toast.id)}
 			<div
 				class="flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-md {toastClass(toast.tipo)}"

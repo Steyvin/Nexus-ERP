@@ -652,8 +652,9 @@ create policy "movimientos: solo admin elimina"
 insert into public.catalogo_parametros (tipo, nombre, parametros) values
 
 ('nube', 'Aviso Nube (con faja)', '{
-  "precio_cm2_acrilico": 15,
+  "precio_cm2_acrilico": 17,
   "precio_cm2_acrilico_premium": 18,
+  "precio_cm2_pvc": 3,
   "precio_faja_cm2": 15,
   "separacion_led_cm": 7,
   "precio_led_m": 5000,
@@ -670,11 +671,20 @@ insert into public.catalogo_parametros (tipo, nombre, parametros) values
 }'::jsonb),
 
 ('letra', 'Letra por Letra', '{
-  "precio_cm2_acrilico": 18,
+  "precio_cm2_acrilico": 17,
+  "precio_cm2_acrilico_premium": 18,
   "precio_cm2_pvc": 3,
+  "precio_faja_cm2": 15,
   "precio_led_m": 5000,
-  "precio_faja_m_lineal": 1500,
-  "ancho_faja_cm": 6,
+  "precio_vinilo_m2": 50000,
+  "estructura_pequena": 100000,
+  "estructura_mediana": 150000,
+  "estructura_grande": 200000,
+  "transporte_pequeno": 30000,
+  "transporte_grande": 80000,
+  "mdo_pequena": 100000,
+  "mdo_mediana": 150000,
+  "mdo_grande": 200000,
   "margen_ganancia": 0.40
 }'::jsonb),
 
@@ -692,7 +702,7 @@ insert into public.catalogo_parametros (tipo, nombre, parametros) values
 }'::jsonb),
 
 ('acrilio', 'Acrílico sin Faja', '{
-  "precio_cm2_acrilico": 18,
+  "precio_cm2_acrilico": 17,
   "precio_led_m_perimetro": 12000,
   "margen_ganancia": 0.40
 }'::jsonb),

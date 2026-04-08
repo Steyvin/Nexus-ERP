@@ -169,6 +169,7 @@ export interface MovimientoFinanciero {
 export interface ParametrosNube {
   precio_cm2_acrilico:           number
   precio_cm2_acrilico_premium:   number
+  precio_cm2_pvc:                number
   precio_faja_cm2:               number
   separacion_led_cm:             number
   precio_led_m:                  number
@@ -185,8 +186,20 @@ export interface ParametrosNube {
 }
 
 export interface ParametrosLetra {
+  precio_cm2_acrilico:           number
+  precio_cm2_acrilico_premium:   number
+  precio_cm2_pvc:                number
+  precio_faja_cm2:               number
   precio_led_m:                  number
-  mdo_por_letra:                 number
+  precio_vinilo_m2:              number
+  estructura_pequena:            number
+  estructura_mediana:            number
+  estructura_grande:             number
+  transporte_pequeno:            number
+  transporte_grande:             number
+  mdo_pequena:                   number
+  mdo_mediana:                   number
+  mdo_grande:                    number
   margen_ganancia:               number
 }
 
