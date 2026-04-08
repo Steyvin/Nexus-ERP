@@ -123,5 +123,18 @@ export const actions: Actions = {
 
 		if (error) return { error: 'Error al asignar' }
 		return { success: true }
+	},
+
+	// Eliminar pedido (admin)
+	eliminarPedido: async ({ request, locals }) => {
+		const form = await request.formData()
+		const pedidoId = form.get('pedido_id') as string
+
+		await locals.supabase.from('pedido_items').delete().eq('pedido_id', pedidoId)
+
+		const { error } = await locals.supabase.from('pedidos').delete().eq('id', pedidoId)
+
+		if (error) return { error: 'Error al eliminar pedido' }
+		return { success: true }
 	}
 }

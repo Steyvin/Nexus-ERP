@@ -13,21 +13,18 @@
 		{ val: null, label: 'Todas' },
 		{ val: 'pendiente', label: 'Pendientes' },
 		{ val: 'aprobada', label: 'Aprobadas' },
-		{ val: 'convertida', label: 'Convertidas' },
 		{ val: 'cancelada', label: 'Canceladas' }
 	]
 
 	const estadoColor: Record<string, string> = {
 		pendiente: 'bg-yellow-500/15 text-yellow-400',
-		aprobada: 'bg-green-500/15 text-green-400',
-		convertida: 'bg-blue-500/15 text-blue-400',
+		aprobada: 'bg-blue-500/15 text-blue-400',
 		cancelada: 'bg-red-500/15 text-red-400'
 	}
 
 	const estadoLabel: Record<string, string> = {
 		pendiente: 'Pendiente',
 		aprobada: 'Aprobada',
-		convertida: 'Convertida',
 		cancelada: 'Cancelada'
 	}
 

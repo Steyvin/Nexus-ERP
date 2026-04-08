@@ -99,6 +99,10 @@
 		urlDiseno = urlActual || ''
 	}
 
+	// Eliminar pedido
+	let eliminandoPedido = $state<string | null>(null)
+	let nombreClienteEliminar = $state('')
+
 	let totalPaginas = $derived(Math.ceil(data.total / data.porPagina))
 </script>
 
@@ -262,6 +266,17 @@
 									href="/pedidos/{pedido.id}"
 									class="ml-auto text-xs text-[var(--brand-light)] hover:underline"
 								>Ver detalle completo</a>
+								<button
+									type="button"
+									onclick={() => {
+										eliminandoPedido = pedido.id
+										nombreClienteEliminar = cliente?.nombre ?? 'este pedido'
+									}}
+									class="rounded-lg border border-red-500/30 px-3 py-1 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+									title="Eliminar pedido"
+								>
+									Eliminar pedido
+								</button>
 							</div>
 						{/if}
 
@@ -416,6 +431,40 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Modal: Confirmar eliminación de pedido -->
+{#if eliminandoPedido}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (eliminandoPedido = null)}>
+		<div class="mx-4 w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-base font-semibold text-[var(--text)]">Eliminar pedido</h3>
+			<p class="mt-2 text-sm text-[var(--text-muted)]">
+				¿Eliminar el pedido de <span class="font-medium text-[var(--text)]">{nombreClienteEliminar}</span>? Esta acción no se puede deshacer.
+			</p>
+			<form method="POST" action="?/eliminarPedido" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Pedido eliminado')
+						eliminandoPedido = null
+						invalidateAll()
+					}
+				}
+			}}>
+				<input type="hidden" name="pedido_id" value={eliminandoPedido} />
+				<div class="mt-5 flex justify-end gap-3">
+					<button
+						type="button"
+						onclick={() => (eliminandoPedido = null)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+					>Cancelar</button>
+					<button
+						type="submit"
+						class="rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+					>Eliminar</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <!-- Modal: Subir diseño -->
 {#if subiendoDiseno}

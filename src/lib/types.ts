@@ -211,10 +211,11 @@ export interface ParametrosAcrilio {
 }
 
 export interface ParametrosNeon {
-  small:       { precio: number; medida: string; max_palabras: number }
-  medium:      { precio: number; medida: string; max_palabras: number }
-  large:       { precio: number; medida: string; max_palabras: number }
-  instalacion: number
+  small:            { precio: number; medida: string; max_palabras: number }
+  medium:           { precio: number; medida: string; max_palabras: number }
+  large:            { precio: number; medida: string; max_palabras: number }
+  instalacion:      number
+  precio_vinilo_m2?: number
 }
 
 export interface ParametrosVinilo {

@@ -136,7 +136,7 @@ export const actions: Actions = {
 		// Marcar cotización como convertida
 		await supabase
 			.from('cotizaciones')
-			.update({ estado: 'convertida' })
+			.update({ estado: 'aprobada' })
 			.eq('id', cotId)
 
 		redirect(303, `/pedidos/${pedido.id}`)

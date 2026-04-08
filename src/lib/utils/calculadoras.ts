@@ -305,14 +305,88 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 // ─── Neon Flex ───────────────────────────────────────────────────────────────
 
 export interface InputNeon {
-	tamano: 'small' | 'medium' | 'large'
+	tamano: 'small' | 'medium' | 'large' | 'custom'
 	con_instalacion: boolean
+	// Campos para tamaño personalizado
+	custom_ancho_cm: number
+	custom_alto_cm: number
+	custom_grosor: '3mm' | '6mm'
+	custom_con_vinilo: boolean
+	custom_vinilo_ancho_cm: number
+	custom_vinilo_alto_cm: number
+}
+
+const FACTOR_6MM = 60 / 45 // ~1.333 — sobrecosto del acrílico 6mm vs 3mm
+
+// Parsea "80 × 50 cm" → { ancho: 80, alto: 50 }
+function parseMedida(medida: string): { ancho: number; alto: number } | null {
+	const m = medida.replace(/\s/g, '').match(/(\d+)[x×](\d+)/i)
+	if (!m) return null
+	return { ancho: Number(m[1]), alto: Number(m[2]) }
+}
+
+function redondear10k(valor: number): number {
+	return Math.ceil(valor / 10000) * 10000
 }
 
 export function calcularNeon(i: InputNeon, p: ParametrosNeon): ResultadoCalculo {
-	const tier = p[i.tamano]
 	const desglose: LineaDesglose[] = []
 
+	if (i.tamano === 'custom') {
+		const areaCustom = i.custom_ancho_cm * i.custom_alto_cm
+
+		// Extraer dimensiones y precios de los tiers
+		const tiers = [
+			{ medida: parseMedida(p.small.medida), precio: p.small.precio },
+			{ medida: parseMedida(p.medium.medida), precio: p.medium.precio },
+			{ medida: parseMedida(p.large.medida), precio: p.large.precio }
+		].filter(t => t.medida !== null)
+		 .map(t => ({ area: t.medida!.ancho * t.medida!.alto, precio: t.precio }))
+		 .sort((a, b) => a.area - b.area)
+
+		// Calcular $/cm² de cada tier
+		const tiersCm2 = tiers.map(t => ({ area: t.area, precioCm2: t.precio / t.area }))
+
+		// Interpolar o extrapolar el $/cm² según el área custom
+		let precioCm2Base: number
+		if (tiersCm2.length === 0) {
+			precioCm2Base = 60 // fallback
+		} else if (areaCustom <= tiersCm2[0].area) {
+			precioCm2Base = tiersCm2[0].precioCm2
+		} else if (areaCustom >= tiersCm2[tiersCm2.length - 1].area) {
+			precioCm2Base = tiersCm2[tiersCm2.length - 1].precioCm2
+		} else {
+			// Interpolación lineal entre los dos tiers más cercanos
+			const lower = tiersCm2.findLast(t => t.area <= areaCustom)!
+			const upper = tiersCm2.find(t => t.area > areaCustom)!
+			const t = (areaCustom - lower.area) / (upper.area - lower.area)
+			precioCm2Base = lower.precioCm2 + t * (upper.precioCm2 - lower.precioCm2)
+		}
+
+		// Factor de grosor: 6mm cuesta 33% más que 3mm
+		const factorGrosor = i.custom_grosor === '6mm' ? FACTOR_6MM : 1
+
+		const precioBase = areaCustom * precioCm2Base * factorGrosor
+		desglose.push({
+			concepto: `Neon personalizado ${i.custom_ancho_cm}×${i.custom_alto_cm} cm — acrílico ${i.custom_grosor}`,
+			valor: precioBase
+		})
+
+		if (i.custom_con_vinilo && i.custom_vinilo_ancho_cm > 0 && i.custom_vinilo_alto_cm > 0) {
+			const areaM2 = (i.custom_vinilo_ancho_cm * i.custom_vinilo_alto_cm) / 10000
+			const precioVinilo = p.precio_vinilo_m2 ?? 0
+			desglose.push({
+				concepto: `Vinilo (${i.custom_vinilo_ancho_cm}×${i.custom_vinilo_alto_cm} cm = ${areaM2.toFixed(2)} m²)`,
+				valor: areaM2 * precioVinilo
+			})
+		}
+
+		const costoFabricacion = desglose.reduce((s, l) => s + l.valor, 0)
+		const precioCliente = redondear10k(costoFabricacion)
+		return { desglose, costoFabricacion, precioCliente, margen: 0 }
+	}
+
+	const tier = p[i.tamano]
 	desglose.push({
 		concepto: `Neon ${i.tamano === 'small' ? 'Pequeño' : i.tamano === 'medium' ? 'Mediano' : 'Grande'} (${tier.medida})`,
 		valor: tier.precio

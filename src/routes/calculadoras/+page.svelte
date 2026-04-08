@@ -106,11 +106,88 @@
 			letra.apliques = letra.apliques.slice(0, cant)
 		}
 	})
-	let neon = $state<{ tamano: 'small' | 'medium' | 'large'; con_instalacion: boolean }>({
+	let neon = $state<{
+		tamano: 'small' | 'medium' | 'large' | 'custom'
+		con_instalacion: boolean
+		custom_ancho_cm: number
+		custom_alto_cm: number
+		custom_grosor: '3mm' | '6mm'
+		custom_con_vinilo: boolean
+		custom_vinilo_ancho_cm: number
+		custom_vinilo_alto_cm: number
+	}>({
 		tamano: 'small',
-		con_instalacion: false
+		con_instalacion: false,
+		custom_ancho_cm: 60,
+		custom_alto_cm: 40,
+		custom_grosor: '3mm',
+		custom_con_vinilo: false,
+		custom_vinilo_ancho_cm: 60,
+		custom_vinilo_alto_cm: 40
 	})
 	let vinilo = $state({ ancho_m: 1, alto_m: 1, con_instalacion: false })
+
+	// ── Simulador Neon ──
+	let simTexto = $state('Tu Texto')
+	let simFuente = $state('Allanis')
+	let simColor = $state('#ff2d78')
+	let simFondo = $state('#0a0a0a')
+	let simAlign = $state<'left' | 'center' | 'right'>('center')
+
+	// Tamaños calibrados para que cada fuente se vea visualmente del mismo tamaño
+	// (las fuentes script tienen cap-heights muy distintos entre sí)
+	const FONT_SIZES: Record<string, string> = {
+		'Allanis':      '3.5rem',
+		'Barcelony':    '3rem',
+		'Barokah':      '2.4rem',
+		'Cosmopolitan': '3rem',
+		'Elegant':      '4.2rem',
+		'HanleyPro':    '3.6rem',
+		'Hattinand':    '3.8rem',
+		'Sacramento':   '5rem'
+	}
+
+	const NEON_FONTS = [
+		{ key: 'Allanis', label: 'Allanis' },
+		{ key: 'Barcelony', label: 'Barcelony' },
+		{ key: 'Barokah', label: 'Barokah' },
+		{ key: 'Cosmopolitan', label: 'Cosmopolitan' },
+		{ key: 'Elegant', label: 'Elegant' },
+		{ key: 'HanleyPro', label: 'Hanley Pro' },
+		{ key: 'Hattinand', label: 'Hattinand' },
+		{ key: 'Sacramento', label: 'Sacramento' }
+	]
+
+	let simFontSizeRem = $state(3.5)
+	let simLineHeight = $state(1.3)
+	$effect(() => {
+		simFontSizeRem = parseFloat(FONT_SIZES[simFuente] ?? '3.5')
+	})
+	const simFontSize = $derived(`${simFontSizeRem}rem`)
+
+	const NEON_COLORS = [
+		{ hex: '#ff2d78', label: 'Rosa' },
+		{ hex: '#00f3ff', label: 'Cyan' },
+		{ hex: '#39ff14', label: 'Verde' },
+		{ hex: '#ffff00', label: 'Amarillo' },
+		{ hex: '#ff6b00', label: 'Naranja' },
+		{ hex: '#bf00ff', label: 'Morado' },
+		{ hex: '#ffffff', label: 'Blanco' },
+		{ hex: '#ff4444', label: 'Rojo' }
+	]
+
+	const NEON_FONDOS = [
+		{ hex: '#0a0a0a', label: 'Negro' },
+		{ hex: '#0a0a2e', label: 'Azul oscuro' },
+		{ hex: '#0a1a0a', label: 'Verde oscuro' },
+		{ hex: '#1a0010', label: 'Vino oscuro' },
+		{ hex: '#1a1a1a', label: 'Gris oscuro' },
+		{ hex: '#ffffff', label: 'Blanco' }
+	]
+
+	const simGlow = $derived(
+		`0 0 6px #fff, 0 0 12px #fff, 0 0 20px ${simColor}, 0 0 40px ${simColor}, 0 0 70px ${simColor}, 0 0 100px ${simColor}`
+	)
 	let acrilio = $state({ ancho_cm: 60, alto_cm: 40 })
 	let acrilioCircular = $state<{ diametro: 'd40' | 'd50' | 'd60' | 'd70' | 'd80' }>({
 		diametro: 'd40'
@@ -124,8 +201,15 @@
 				return p.nube ? calcularNube(nube, p.nube as unknown as ParametrosNube) : null
 			case 'letra':
 				return p.letra ? calcularLetra(letra, p.letra as unknown as ParametrosLetra) : null
-			case 'neon':
-				return p.neon ? calcularNeon(neon, p.neon as unknown as ParametrosNeon) : null
+			case 'neon': {
+				if (!p.neon) return null
+				// Para tamaño personalizado, usar el precio de vinilo del aviso nube
+				const neonParams = {
+					...(p.neon as unknown as ParametrosNeon),
+					precio_vinilo_m2: (p.nube as any)?.precio_vinilo_m2 ?? 0
+				}
+				return calcularNeon(neon, neonParams)
+			}
 			case 'vinilo':
 				return p.vinilo ? calcularVinilo(vinilo, p.vinilo as unknown as ParametrosVinilo) : null
 			case 'acrilio':
@@ -146,6 +230,9 @@
 			case 'letra':
 				return `Aviso Letra ${letra.ancho_cm}×${letra.alto_cm} cm, perim. ${letra.perimetro_cm}cm${letra.apliques.length ? ` + ${letra.apliques.length} apliques` : ''}`
 			case 'neon': {
+				if (neon.tamano === 'custom') {
+					return `Neon Flex Personalizado ${neon.custom_ancho_cm}×${neon.custom_alto_cm} cm (Acrílico ${neon.custom_grosor})`
+				}
 				const t = neon.tamano === 'small' ? 'Pequeño' : neon.tamano === 'medium' ? 'Mediano' : 'Grande'
 				return `Neon Flex ${t}`
 			}
@@ -179,6 +266,16 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
 	<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<style>
+		@font-face { font-family: 'Allanis';       src: url('/fonts/neon/Allanis (DEMO).ttf'); }
+		@font-face { font-family: 'Barcelony';      src: url('/fonts/neon/Barcelony.ttf'); }
+		@font-face { font-family: 'Barokah';        src: url('/fonts/neon/Barokah Signature by Alifinart Studio.ttf'); }
+		@font-face { font-family: 'Cosmopolitan';   src: url('/fonts/neon/CosmopolitanScriptRegular.otf'); }
+		@font-face { font-family: 'Elegant';        src: url('/fonts/neon/Elegant DEMO.ttf'); }
+		@font-face { font-family: 'HanleyPro';      src: url('/fonts/neon/HanleyPro-Monoline.ttf'); }
+		@font-face { font-family: 'Hattinand';      src: url('/fonts/neon/Hattinand.otf'); }
+		@font-face { font-family: 'Sacramento';     src: url('/fonts/neon/Sacramento-Regular.ttf'); }
+	</style>
 </svelte:head>
 
 <div class="calculator-root font-exo">
@@ -620,6 +717,172 @@
 
 
 			{:else if tabActiva === 'neon'}
+
+				<!-- Simulador visual de Neon Flex -->
+				<div class="section-card">
+					<div class="sc-header">
+						<div class="sc-icon">✨</div>
+						<div class="sc-texts">
+							<h3 class="sc-title">Simulador de Neon</h3>
+							<p class="sc-desc">Previsualiza cómo quedaría el aviso</p>
+						</div>
+					</div>
+					<div class="sc-content">
+
+						<!-- SVG Filter para efecto acrílico (invisible) -->
+						<svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
+							<defs>
+								<filter id="neon-acrylic-filter" x="-40%" y="-80%" width="180%" height="260%">
+									<feMorphology in="SourceAlpha" operator="dilate" radius="7" result="silueta"/>
+									<feFlood flood-color="#ffffff" flood-opacity="0.07" result="acrylicFill"/>
+									<feComposite in="acrylicFill" in2="silueta" operator="in" result="relleno"/>
+									<feMorphology in="SourceAlpha" operator="dilate" radius="7" result="bordeExt"/>
+									<feMorphology in="SourceAlpha" operator="dilate" radius="4" result="bordeInt"/>
+									<feComposite in="bordeExt" in2="bordeInt" operator="out" result="anillo"/>
+									<feFlood flood-color={simColor} flood-opacity="0.85" result="colorBorde"/>
+									<feComposite in="colorBorde" in2="anillo" operator="in" result="bordeColoreado"/>
+									<feGaussianBlur in="bordeColoreado" stdDeviation="1.5" result="bordeGlow"/>
+									<feGaussianBlur in="silueta" stdDeviation="8" result="haloBlur"/>
+									<feFlood flood-color={simColor} flood-opacity="0.28" result="colorHalo"/>
+									<feComposite in="colorHalo" in2="haloBlur" operator="in" result="halo"/>
+									<feMerge>
+										<feMergeNode in="halo"/>
+										<feMergeNode in="relleno"/>
+										<feMergeNode in="bordeGlow"/>
+										<feMergeNode in="SourceGraphic"/>
+									</feMerge>
+								</filter>
+							</defs>
+						</svg>
+
+						<!-- Preview box -->
+						<div class="sim-preview-box" style="background: {simFondo};">
+							<div class="sim-acrylic" style="filter: url(#neon-acrylic-filter);">
+								<div
+									class="sim-neon-text"
+									style="font-family: '{simFuente}', cursive, sans-serif; font-size: {simFontSize}; line-height: {simLineHeight}; text-align: {simAlign}; text-shadow: {simGlow};"
+								>{@html simTexto.replace(/\n/g, '<br>')}</div>
+							</div>
+						</div>
+
+						<!-- Input de texto -->
+						<div>
+							<label class="label-field">Texto del neon</label>
+							<textarea
+								bind:value={simTexto}
+								rows="2"
+								placeholder="Escribe aquí..."
+								class="input-calc w-full resize-none"
+							></textarea>
+						</div>
+
+						<!-- Tipografía -->
+						<div>
+							<label class="label-field">Tipografía</label>
+							<div class="sim-font-row">
+								{#each NEON_FONTS as f}
+									<button
+										onclick={() => (simFuente = f.key)}
+										class="sim-font-pill"
+										class:sim-font-active={simFuente === f.key}
+										style="font-family: '{f.key}', cursive;"
+									>{f.label}</button>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Tamaño de fuente -->
+						<div>
+							<div class="flex items-center justify-between mb-1">
+								<label class="label-field" style="margin:0">Tamaño de fuente</label>
+								<span class="text-xs text-[var(--text-dim)]">{simFontSizeRem.toFixed(1)} rem</span>
+							</div>
+							<input
+								type="range"
+								min="1"
+								max="8"
+								step="0.1"
+								bind:value={simFontSizeRem}
+								class="sim-size-slider w-full"
+							/>
+							<div class="flex justify-between text-[10px] text-[var(--text-dim)] mt-1">
+								<span>Pequeño</span>
+								<span>Grande</span>
+							</div>
+						</div>
+
+						<!-- Interlineado -->
+						<div>
+							<div class="flex items-center justify-between mb-1">
+								<label class="label-field" style="margin:0">Interlineado</label>
+								<span class="text-xs text-[var(--text-dim)]">{simLineHeight.toFixed(1)}</span>
+							</div>
+							<input
+								type="range"
+								min="0.8"
+								max="3"
+								step="0.1"
+								bind:value={simLineHeight}
+								class="sim-size-slider w-full"
+							/>
+							<div class="flex justify-between text-[10px] text-[var(--text-dim)] mt-1">
+								<span>Compacto</span>
+								<span>Separado</span>
+							</div>
+						</div>
+
+						<!-- Color neon -->
+						<div>
+							<label class="label-field">Color del neon</label>
+							<div class="sim-swatch-row">
+								{#each NEON_COLORS as c}
+									<button
+										onclick={() => (simColor = c.hex)}
+										class="sim-swatch"
+										class:sim-swatch-active={simColor === c.hex}
+										style="background: {c.hex}; {c.hex === '#ffffff' ? 'box-shadow: 0 0 0 1px #ccc;' : ''}"
+										title={c.label}
+									></button>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Color fondo -->
+						<div>
+							<label class="label-field">Color del fondo</label>
+							<div class="sim-swatch-row">
+								{#each NEON_FONDOS as f}
+									<button
+										onclick={() => (simFondo = f.hex)}
+										class="sim-swatch"
+										class:sim-swatch-active={simFondo === f.hex}
+										style="background: {f.hex}; {f.hex === '#ffffff' || f.hex === '#0a0a0a' || f.hex === '#1a1a1a' ? 'box-shadow: 0 0 0 1px #555;' : ''}"
+										title={f.label}
+									></button>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Alineación -->
+						<div>
+							<label class="label-field">Alineación</label>
+							<div class="sim-align-row">
+								{#each [
+									{ val: 'left', icon: '⬅' },
+									{ val: 'center', icon: '↔' },
+									{ val: 'right', icon: '➡' }
+								] as a}
+									<button
+										onclick={() => (simAlign = a.val as 'left' | 'center' | 'right')}
+										class="sim-align-btn"
+										class:sim-align-active={simAlign === a.val}
+									>{a.icon}</button>
+								{/each}
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<div class="section-card">
 					<div class="sc-header">
 						<div class="sc-icon">💡</div>
@@ -631,14 +894,15 @@
 					<div class="sc-content">
 						<div>
 							<label class="label-field">Tamaño</label>
-							<div class="grid grid-cols-3 gap-2">
+							<div class="grid grid-cols-2 gap-2">
 								{#each [
 									{ val: 'small', label: 'Pequeño', sub: (data.parametros.neon as any)?.small?.medida ?? '' },
 									{ val: 'medium', label: 'Mediano', sub: (data.parametros.neon as any)?.medium?.medida ?? '' },
-									{ val: 'large', label: 'Grande', sub: (data.parametros.neon as any)?.large?.medida ?? '' }
+									{ val: 'large', label: 'Grande', sub: (data.parametros.neon as any)?.large?.medida ?? '' },
+									{ val: 'custom', label: 'Tamaño personalizado', sub: 'Ingresar medidas del acrílico' }
 								] as opt}
 									<button
-										onclick={() => (neon.tamano = opt.val as 'small' | 'medium' | 'large')}
+										onclick={() => (neon.tamano = opt.val as 'small' | 'medium' | 'large' | 'custom')}
 										class="size-btn rounded-lg p-3 text-center transition-colors"
 										class:size-activo={neon.tamano === opt.val}
 									>
@@ -648,27 +912,92 @@
 								{/each}
 							</div>
 						</div>
+
+						<!-- Campos del tamaño personalizado -->
+						{#if neon.tamano === 'custom'}
+							<div class="mt-4 border-t border-[var(--border)] pt-4 space-y-4">
+								<!-- Medidas -->
+								<div class="grid grid-cols-2 gap-3">
+									<div>
+										<label class="label-field">Ancho acrílico (cm)</label>
+										<input type="number" bind:value={neon.custom_ancho_cm} min="1" class="input-calc" placeholder="Ej: 60" />
+									</div>
+									<div>
+										<label class="label-field">Alto acrílico (cm)</label>
+										<input type="number" bind:value={neon.custom_alto_cm} min="1" class="input-calc" placeholder="Ej: 40" />
+									</div>
+								</div>
+
+								<!-- Grosor del acrílico -->
+								<div>
+									<label class="label-field">Grosor del acrílico</label>
+									<div class="grid grid-cols-2 gap-2 mt-1">
+										<button
+											onclick={() => (neon.custom_grosor = '3mm')}
+											class="size-btn rounded-lg p-3 text-center transition-colors"
+											class:size-activo={neon.custom_grosor === '3mm'}
+										>
+											<span class="block text-sm font-medium">Acrílico 3mm</span>
+											<span class="block text-[10px] text-[var(--text-dim)]">$45 por cm²</span>
+										</button>
+										<button
+											onclick={() => (neon.custom_grosor = '6mm')}
+											class="size-btn rounded-lg p-3 text-center transition-colors"
+											class:size-activo={neon.custom_grosor === '6mm'}
+										>
+											<span class="block text-sm font-medium">Acrílico 6mm</span>
+											<span class="block text-[10px] text-[var(--text-dim)]">$60 por cm²</span>
+										</button>
+									</div>
+								</div>
+
+								<!-- Vinilo -->
+								<div class="border-t border-[var(--border)] pt-3">
+									<label class="toggle-row-between">
+										<div class="toggle-label-group">
+											<span class="toggle-label-main">¿Lleva vinilo?</span>
+											<span class="toggle-label-sub">Costos por metro cuadrado</span>
+										</div>
+										<input type="checkbox" bind:checked={neon.custom_con_vinilo} class="toggle-check" />
+									</label>
+									{#if neon.custom_con_vinilo}
+										<div class="grid grid-cols-2 gap-3 mt-3">
+											<div>
+												<label class="label-field">Ancho vinilo (cm)</label>
+												<input type="number" bind:value={neon.custom_vinilo_ancho_cm} min="1" class="input-calc" />
+											</div>
+											<div>
+												<label class="label-field">Alto vinilo (cm)</label>
+												<input type="number" bind:value={neon.custom_vinilo_alto_cm} min="1" class="input-calc" />
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 
-				<div class="section-card">
-					<div class="sc-header">
-						<div class="sc-icon">🔧</div>
-						<div class="sc-texts">
-							<h3 class="sc-title">Instalación</h3>
-							<p class="sc-desc">Montaje en el lugar indicado</p>
+				{#if neon.tamano !== 'custom'}
+					<div class="section-card">
+						<div class="sc-header">
+							<div class="sc-icon">🔧</div>
+							<div class="sc-texts">
+								<h3 class="sc-title">Instalación</h3>
+								<p class="sc-desc">Montaje en el lugar indicado</p>
+							</div>
+						</div>
+						<div class="sc-content">
+							<label class="toggle-row-between">
+								<div class="toggle-label-group">
+									<span class="toggle-label-main">¿Con instalación?</span>
+									<span class="toggle-label-sub">Incluye extras de instalación</span>
+								</div>
+								<input type="checkbox" bind:checked={neon.con_instalacion} class="toggle-check" />
+							</label>
 						</div>
 					</div>
-					<div class="sc-content">
-						<label class="toggle-row-between">
-							<div class="toggle-label-group">
-								<span class="toggle-label-main">¿Con instalación?</span>
-								<span class="toggle-label-sub">Incluye extras de instalación</span>
-							</div>
-							<input type="checkbox" bind:checked={neon.con_instalacion} class="toggle-check" />
-						</label>
-					</div>
-				</div>
+				{/if}
 
 			{:else if tabActiva === 'vinilo'}
 				<div class="section-card">
@@ -1119,5 +1448,143 @@
 		font-size: 0.75rem;
 		color: var(--text-dim);
 		margin-top: 3px;
+	}
+
+	/* ── Simulador Neon ──────────────────────────────── */
+	.sim-preview-box {
+		border-radius: 14px;
+		min-height: 320px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 64px 48px;
+		position: relative;
+		overflow: hidden;
+		transition: background 0.3s;
+	}
+
+	.sim-acrylic {
+		display: inline-block;
+		filter: url(#neon-acrylic-filter);
+		max-width: 100%;
+	}
+
+	.sim-neon-text {
+		text-align: center;
+		word-break: break-word;
+		overflow-wrap: break-word;
+		max-width: 100%;
+		line-height: 1.3;
+		color: #fff;
+		transition: color 0.2s, font-family 0.2s, text-shadow 0.3s;
+		animation: nflicker 6s infinite;
+		max-width: 100%;
+	}
+
+	@keyframes nflicker {
+		0%,94%,96%,98%,100% { opacity: 1; }
+		95%  { opacity: .85; }
+		97%  { opacity: .7; }
+		99%  { opacity: .9; }
+	}
+
+	/* Fuentes pills */
+	.sim-font-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 6px;
+	}
+	.sim-font-pill {
+		padding: 6px 14px;
+		border-radius: 50px;
+		border: 1.5px solid #222;
+		background: #111;
+		color: #ccc;
+		cursor: pointer;
+		font-size: 0.9rem;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.sim-font-pill:hover { border-color: #444; background: #181818; }
+	.sim-font-active {
+		border-color: rgba(255,255,255,0.5) !important;
+		background: #1a1a1a !important;
+		color: #fff !important;
+		font-weight: 700;
+	}
+
+	/* Swatches de color */
+	.sim-swatch-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+		margin-top: 6px;
+	}
+	.sim-swatch {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		cursor: pointer;
+		border: 3px solid transparent;
+		transition: transform 0.15s, border-color 0.15s;
+	}
+	.sim-swatch:hover { transform: scale(1.15); }
+	.sim-swatch-active {
+		border-color: #fff !important;
+		transform: scale(1.15);
+	}
+
+	/* Slider de tamaño */
+	.sim-size-slider {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 100%;
+		height: 4px;
+		border-radius: 2px;
+		background: #2a2a2a;
+		outline: none;
+		cursor: pointer;
+	}
+	.sim-size-slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: #fff;
+		cursor: pointer;
+		box-shadow: 0 0 6px rgba(255,255,255,0.4);
+	}
+	.sim-size-slider::-moz-range-thumb {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: #fff;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 0 6px rgba(255,255,255,0.4);
+	}
+
+	/* Alineación */
+	.sim-align-row {
+		display: flex;
+		gap: 8px;
+		margin-top: 6px;
+	}
+	.sim-align-btn {
+		flex: 1;
+		padding: 8px;
+		border: 1.5px solid #1e1e1e;
+		border-radius: 8px;
+		background: #0d0d0d;
+		color: #ccc;
+		font-size: 1.1rem;
+		cursor: pointer;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.sim-align-btn:hover { border-color: #383838; background: #141414; }
+	.sim-align-active {
+		border-color: rgba(255,255,255,0.4) !important;
+		background: #141414 !important;
 	}
 </style>

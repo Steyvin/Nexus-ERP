@@ -13,7 +13,7 @@
 	const items = $derived((cot as any).cotizacion_items ?? [])
 	const puedeVerCostos = $derived(data.rol === 'admin' || data.rol === 'finanzas')
 	const puedeGestionar = $derived(data.rol === 'admin' || data.rol === 'finanzas')
-	const esEditable = $derived(cot.estado === 'pendiente' || cot.estado === 'aprobada')
+	const esEditable = $derived(cot.estado === 'pendiente')
 
 	let editandoItem = $state<string | null>(null)
 	let precioEditado = $state(0)
@@ -27,15 +27,13 @@
 
 	const estadoColor: Record<string, string> = {
 		pendiente: 'bg-yellow-500/15 text-yellow-400',
-		aprobada: 'bg-green-500/15 text-green-400',
-		convertida: 'bg-blue-500/15 text-blue-400',
+		aprobada: 'bg-blue-500/15 text-blue-400',
 		cancelada: 'bg-red-500/15 text-red-400'
 	}
 
 	const estadoLabel: Record<string, string> = {
 		pendiente: 'Pendiente',
 		aprobada: 'Aprobada',
-		convertida: 'Convertida',
 		cancelada: 'Cancelada'
 	}
 
@@ -77,21 +75,6 @@
 		<!-- Acciones -->
 		{#if puedeGestionar}
 			<div class="flex gap-2">
-				{#if cot.estado === 'pendiente'}
-					<form method="POST" action="?/cambiarEstado" use:enhance={() => {
-						return async ({ result }) => {
-							if (result.type === 'success') {
-								mostrarToast('Cotización aprobada')
-								invalidateAll()
-							}
-						}
-					}}>
-						<input type="hidden" name="id" value={cot.id} />
-						<input type="hidden" name="estado" value="aprobada" />
-						<button class="btn-success rounded-lg px-4 py-2 text-sm font-medium">Aprobar</button>
-					</form>
-				{/if}
-
 				{#if esEditable}
 					<button
 						onclick={() => (confirmandoConvertir = true)}
@@ -99,7 +82,7 @@
 					>Convertir en pedido</button>
 				{/if}
 
-				{#if cot.estado !== 'cancelada' && cot.estado !== 'convertida'}
+				{#if cot.estado !== 'cancelada' && cot.estado !== 'aprobada'}
 					<form method="POST" action="?/cambiarEstado" use:enhance={() => {
 						return async ({ result }) => {
 							if (result.type === 'success') {
@@ -327,7 +310,7 @@
 			<h3 class="text-lg font-semibold text-[var(--text)]">Convertir en pedido</h3>
 			<p class="mt-2 text-sm text-[var(--text-muted)]">
 				Se creará un pedido con los {items.length} producto{items.length !== 1 ? 's' : ''} de esta cotización
-				por un total de {fmt(cot.precio_total)}. La cotización se marcará como "Convertida".
+				por un total de {fmt(cot.precio_total)}. La cotización se marcará como "Aprobada".
 			</p>
 			<div class="mt-5 flex justify-end gap-3">
 				<button
@@ -379,16 +362,7 @@
 		background: var(--brand-light);
 	}
 
-	.btn-success {
-		background: #22c55e;
-		color: #fff;
-		transition: background 0.15s;
-	}
-	.btn-success:hover {
-		background: #16a34a;
-	}
-
-	.btn-danger {
+.btn-danger {
 		background: #ef4444;
 		color: #fff;
 		transition: background 0.15s;

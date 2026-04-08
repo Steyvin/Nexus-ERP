@@ -22,7 +22,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		)
 		.order('created_at', { ascending: false })
 
-	if (filtroEstado) query = query.eq('estado', filtroEstado)
+	if (filtroEstado) {
+		query = query.eq('estado', filtroEstado)
+	} else {
+		// Por defecto, ocultar cotizaciones ya convertidas a pedido
+		query = query.neq('estado', 'aprobada')
+	}
 
 	if (busqueda) {
 		query = query.ilike('clientes.nombre', `%${busqueda}%`)
