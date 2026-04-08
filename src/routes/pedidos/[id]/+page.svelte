@@ -53,9 +53,18 @@
 	let descripcionDiseno = $state('')
 	let nuevaNota = $state('')
 	let editandoInfo = $state(false)
-	let editFechaEntrega = $state(ped.fecha_entrega ?? '')
-	let editAbono = $state(Number(ped.abono) || 0)
-	let editNota = $state(ped.nota ?? '')
+	let editFechaEntrega = $state('')
+	let editAbono = $state(0)
+	let editNota = $state('')
+
+	// Sincroniza los campos del formulario con el pedido cuando no se está editando
+	$effect(() => {
+		if (!editandoInfo) {
+			editFechaEntrega = ped.fecha_entrega ?? ''
+			editAbono = Number(ped.abono) || 0
+			editNota = ped.nota ?? ''
+		}
+	})
 
 	// Detectar tipo de nota para iconos en el timeline
 	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'nota' {
@@ -500,7 +509,7 @@
 					<div class="flex items-center justify-between">
 						<h2 class="text-sm font-medium text-[var(--text)]">Información</h2>
 						<button
-							onclick={() => { editandoInfo = !editandoInfo; if (!editandoInfo) { editFechaEntrega = ped.fecha_entrega ?? ''; editAbono = Number(ped.abono) || 0; editNota = ped.nota ?? '' } }}
+							onclick={() => { editandoInfo = !editandoInfo }}
 							class="text-xs text-[var(--brand-light)] hover:underline"
 						>{editandoInfo ? 'Cancelar' : 'Editar'}</button>
 					</div>

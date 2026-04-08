@@ -1,4 +1,6 @@
-import adapter from '@sveltejs/adapter-vercel';
+// adapter-auto detecta Vercel en CI/producción y usa adapter-vercel automáticamente.
+// En Windows local evita el error de symlinks del adapter-vercel directo.
+import adapter from '@sveltejs/adapter-auto';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */

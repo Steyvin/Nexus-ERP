@@ -8,7 +8,13 @@
       "Bash(npx supabase:*)",
       "Bash(curl:*)",
       "Bash(npm install:*)",
-      "Bash(npx svelte-kit:*)"
+      "Bash(npx svelte-kit:*)",
+      "Bash(clip)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(grep -n '$state\\(data\\\\.' C:/Users/steyv/OneDrive/Documentos/Proyectos/Nexus-ERP/src/routes/cotizaciones/+page.svelte)",
+      "Bash(grep -n '$state\\(data\\\\.\\\\|$state\\(ped\\\\.' 'C:/Users/steyv/OneDrive/Documentos/Proyectos/Nexus-ERP/src/routes/pedidos/[id]/+page.svelte')",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }
