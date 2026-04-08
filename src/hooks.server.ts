@@ -72,11 +72,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// ── 5. Resolver la request ────────────────────────────────────────────────
-	return resolve(event, {
-		// Permitir headers necesarios de Supabase en las respuestas
+	// ── 5. Resolver la request y agregar headers de seguridad ────────────────
+	const response = await resolve(event, {
 		filterSerializedResponseHeaders(name) {
 			return name === 'content-range' || name === 'x-supabase-api-version'
 		}
 	})
+
+	// No-index en todas las respuestas HTML (refuerza robots.txt y meta tag)
+	response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+	response.headers.set('X-Frame-Options', 'DENY')
+	response.headers.set('X-Content-Type-Options', 'nosniff')
+
+	return response
 }
