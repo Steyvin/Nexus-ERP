@@ -9,6 +9,7 @@ export interface ItemCarrito {
 	precio_fabricacion: number
 	precio_cliente: number
 	parametros: Record<string, unknown>
+	archivo_diseno_url?: string
 }
 
 export const items = writable<ItemCarrito[]>([])

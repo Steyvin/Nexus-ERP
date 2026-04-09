@@ -3,6 +3,7 @@
 	import { fmt } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
 	import { agregarItem, totalItems } from '$lib/stores/carrito'
+	import { toPng, toBlob } from 'html-to-image'
 	import { TIPO_LABEL } from '$lib/types'
 	import {
 		calcularNube,
@@ -64,6 +65,7 @@
 		ancho_cm: 100,
 		alto_cm: 50,
 		perimetro_cm: 200,
+		faja_grosor_custom: false,
 		faja_ancho_cm: 6,
 		cantidad_apliques: 0,
 		apliques: [],
@@ -133,6 +135,33 @@
 	let simColor = $state('#ff2d78')
 	let simFondo = $state('#0a0a0a')
 	let simAlign = $state<'left' | 'center' | 'right'>('center')
+	let simRef = $state<HTMLElement | null>(null)
+
+	async function descargarSimulacion() {
+		if (!simRef) return
+		try {
+			const dataUrl = await toPng(simRef, { quality: 1, pixelRatio: 2 })
+			const link = document.createElement('a')
+			link.download = 'neon-simulacion.png'
+			link.href = dataUrl
+			link.click()
+		} catch (e) {
+			mostrarToast('Error al descargar imagen', 'error')
+		}
+	}
+
+	async function copiarSimulacion() {
+		if (!simRef) return
+		try {
+			const blob = await toBlob(simRef, { quality: 1, pixelRatio: 2 })
+			if (blob) {
+				await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+				mostrarToast('Imagen copiada al portapapeles')
+			}
+		} catch (e) {
+			mostrarToast('Error al copiar imagen', 'error')
+		}
+	}
 
 	// Tamaños calibrados para que cada fuente se vea visualmente del mismo tamaño
 	// (las fuentes script tienen cap-heights muy distintos entre sí)
@@ -188,7 +217,7 @@
 	const simGlow = $derived(
 		`0 0 6px #fff, 0 0 12px #fff, 0 0 20px ${simColor}, 0 0 40px ${simColor}, 0 0 70px ${simColor}, 0 0 100px ${simColor}`
 	)
-	let acrilio = $state({ ancho_cm: 60, alto_cm: 40 })
+	let acrilio = $state({ ancho_cm: 60, alto_cm: 40, con_iluminacion: false, con_microporosa: false })
 	let acrilioCircular = $state<{ diametro: 'd40' | 'd50' | 'd60' | 'd70' | 'd80' }>({
 		diametro: 'd40'
 	})
@@ -756,13 +785,37 @@
 						</svg>
 
 						<!-- Preview box -->
-						<div class="sim-preview-box" style="background: {simFondo};">
+						<div bind:this={simRef} class="sim-preview-box" style="background: {simFondo};">
+							<!-- Overlay Badge -->
+							{#if resultado}
+							<div class="absolute top-4 left-4 rounded-lg bg-[rgba(0,0,0,0.65)] px-3 py-1.5 backdrop-blur-md border border-[rgba(255,255,255,0.1)] z-20">
+								<span class="block text-[11px] font-semibold text-[rgba(255,255,255,0.95)]">
+									{#if neon.tamano === 'custom'}
+										{neon.custom_ancho_cm} × {neon.custom_alto_cm} cm
+									{:else}
+										{(data.parametros.neon as any)?.[neon.tamano]?.medida ?? ''}
+									{/if}
+								</span>
+								<span class="block text-[11px] text-[var(--brand-light)] font-bold opacity-90">{fmt(resultado.precioCliente)}</span>
+							</div>
+							{/if}
 							<div class="sim-acrylic" style="filter: url(#neon-acrylic-filter);">
 								<div
 									class="sim-neon-text"
 									style="font-family: '{simFuente}', cursive, sans-serif; font-size: {simFontSize}; line-height: {simLineHeight}; text-align: {simAlign}; text-shadow: {simGlow};"
 								>{@html simTexto.replace(/\n/g, '<br>')}</div>
 							</div>
+						</div>
+
+						<div class="flex gap-2 justify-end -mt-2">
+							<button onclick={copiarSimulacion} class="btn-secondary rounded-lg px-3 py-1.5 text-[11px] flex items-center gap-1.5 bg-[#0a0a0a]">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+								Copiar
+							</button>
+							<button onclick={descargarSimulacion} class="btn-secondary rounded-lg px-3 py-1.5 text-[11px] flex items-center gap-1.5 bg-[#0a0a0a]">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+								Descargar
+							</button>
 						</div>
 
 						<!-- Input de texto -->
@@ -1059,6 +1112,22 @@
 								<label class="label-field">Alto (cm)</label>
 								<input type="number" bind:value={acrilio.alto_cm} min="1" class="input-calc" />
 							</div>
+						</div>
+						<div class="grid grid-cols-2 gap-4 mt-6 border-t border-[var(--border)] pt-4">
+							<label class="toggle-row-between">
+								<div class="toggle-label-group">
+									<span class="toggle-label-main">¿Lleva LED?</span>
+									<span class="toggle-label-sub">Iluminación perimetral</span>
+								</div>
+								<input type="checkbox" bind:checked={acrilio.con_iluminacion} class="toggle-check" />
+							</label>
+							<label class="toggle-row-between">
+								<div class="toggle-label-group">
+									<span class="toggle-label-main">¿Microporosa?</span>
+									<span class="toggle-label-sub">Soporte trasero extra</span>
+								</div>
+								<input type="checkbox" bind:checked={acrilio.con_microporosa} class="toggle-check" />
+							</label>
 						</div>
 					</div>
 				</div>

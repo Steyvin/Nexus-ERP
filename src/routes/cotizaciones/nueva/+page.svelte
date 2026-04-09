@@ -92,7 +92,10 @@
 			descripcion: item.descripcion,
 			precio_fabricacion: Math.round(item.precio_fabricacion),
 			precio_cliente: Math.round(item.precio_cliente),
-			parametros: item.parametros,
+			parametros: {
+				...item.parametros,
+				...(item.archivo_diseno_url ? { archivo_diseno_url: item.archivo_diseno_url } : {})
+			},
 			orden: idx
 		}))
 
@@ -158,6 +161,15 @@
 										<p class="mt-0.5 text-[10px] text-[var(--text-dim)]">
 											Costo fab: {fmt(item.precio_fabricacion)}
 										</p>
+										
+										<div class="mt-3 max-w-sm">
+											<input
+												type="url"
+												placeholder="URL imagen de referencia (opcional)"
+												bind:value={$items[idx].archivo_diseno_url}
+												class="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card-2)] px-2 py-1.5 text-xs text-[var(--text)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--brand)]"
+											/>
+										</div>
 									</div>
 
 									<!-- Precio editable -->

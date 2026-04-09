@@ -713,7 +713,10 @@ insert into public.catalogo_parametros (tipo, nombre, parametros) values
   "d60": 240000,
   "d70": 280000,
   "d80": 350000
-}'::jsonb);
+}'::jsonb)
+on conflict (tipo) do update set
+  nombre     = excluded.nombre,
+  parametros = excluded.parametros;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -194,6 +194,18 @@
 							<span class="rounded-full px-2 py-0.5 text-[10px] font-medium {estadoColor[pedido.estado] ?? 'bg-gray-500/15 text-gray-400'}">
 								{pedido.estado}
 							</span>
+							{#if cliente?.contacto}
+								<a
+									href={`https://wa.me/${cliente.contacto.replace(/\D/g, '')}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									onclick={(e) => e.stopPropagation()}
+									class="ml-1 inline-flex items-center justify-center rounded bg-green-500/10 p-1 text-green-400 hover:bg-green-500/20 transition-colors"
+									title="Contactar por WhatsApp"
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+								</a>
+							{/if}
 						</div>
 						<div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-dim)]">
 							{#if cliente?.empresa}

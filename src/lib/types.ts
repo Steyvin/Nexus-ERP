@@ -208,6 +208,7 @@ export interface ParametrosAcrilio {
   precio_apliques?:              number
   precio_led_m_perimetro:        number
   margen_ganancia:               number
+  precio_cm2_microporosa?:       number
 }
 
 export interface ParametrosNeon {

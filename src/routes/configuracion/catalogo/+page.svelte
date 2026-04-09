@@ -60,6 +60,7 @@
 		// Acrílico
 		precio_led_m_perimetro: { label: 'LED perímetro', sufijo: '$/metro' },
 		precio_apliques: { label: 'Apliques', sufijo: '$' },
+		precio_cm2_microporosa: { label: 'Precio microporosa', sufijo: '$/cm²' },
 		// Vinilo
 		precio_m2: { label: 'Precio', sufijo: '$/m²' },
 		instalacion: { label: 'Instalación', sufijo: '$' },

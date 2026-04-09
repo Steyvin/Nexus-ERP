@@ -123,6 +123,7 @@ export const actions: Actions = {
 			descripcion: item.descripcion,
 			precio_fabricacion: item.precio_fabricacion,
 			precio_cliente: item.precio_cliente,
+			archivo_diseno_url: item.parametros?.archivo_diseno_url ?? null,
 			orden: item.orden
 		}))
 

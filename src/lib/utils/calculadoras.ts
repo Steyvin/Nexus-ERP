@@ -206,15 +206,15 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 	if (areaCm2 > 0) {
 		desglose.push({
 			concepto: `Acrílico (Bounding Box) (${areaCm2} cm²)`,
-			valor: areaCm2 * p.precio_cm2_acrilico
+			valor: areaCm2 * (p.precio_cm2_acrilico ?? 0)
 		})
 	}
 
 	// 2. Tapa PVC 
-	if (areaCm2 > 0 && p.precio_cm2_pvc > 0) {
+	if (areaCm2 > 0 && (p.precio_cm2_pvc ?? 0) > 0) {
 		desglose.push({
 			concepto: `Tapa PVC (${areaCm2} cm²)`,
-			valor: areaCm2 * p.precio_cm2_pvc
+			valor: areaCm2 * (p.precio_cm2_pvc ?? 0)
 		})
 	}
 
@@ -222,7 +222,7 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 	i.apliques.forEach((ap, idx) => {
 		const ap_area = ap.ancho_cm * ap.alto_cm
 		if (ap_area > 0) {
-			const pr = esColorPremium(ap.color) ? p.precio_cm2_acrilico_premium : p.precio_cm2_acrilico
+			const pr = esColorPremium(ap.color) ? (p.precio_cm2_acrilico_premium ?? (p.precio_cm2_acrilico ?? 0)) : (p.precio_cm2_acrilico ?? 0)
 			const sub = ap_area * pr
 			desglose.push({ concepto: `Aplique ${idx + 1} (${ap.color})`, valor: sub })
 		}
@@ -233,11 +233,11 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 		const anchoFaja = i.faja_ancho_cm > 0 ? i.faja_ancho_cm : 6
 		// Dividir tiras por 120cm y aproximar al siguiente entero
 		const numFajas = Math.ceil(i.perimetro_cm / 120)
-		// Fórmula: fajas * grosor * coeficiente
-		const areaCoeficiente = numFajas * anchoFaja
+		// Área total = tiras × largo de cada tira (120 cm) × grosor
+		const areaFaja = numFajas * 120 * anchoFaja
 		desglose.push({
-			concepto: `Faja perimetral (${i.faja_ancho_cm} cm de ancho)`,
-			valor: areaCoeficiente * p.precio_faja_cm2
+			concepto: `Faja perimetral (${numFajas} tiras × ${anchoFaja} cm = ${areaFaja} cm²)`,
+			valor: areaFaja * (p.precio_faja_cm2 ?? 0)
 		})
 	}
 
@@ -247,7 +247,7 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 		const luz_metros = (i.perimetro_cm / 100) / 2
 		desglose.push({
 			concepto: `LED perimetral (${luz_metros.toFixed(2)} m)`,
-			valor: luz_metros * p.precio_led_m
+			valor: luz_metros * (p.precio_led_m ?? 0)
 		})
 	}
 
@@ -256,7 +256,7 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 		const area_vinilo_m2 = (i.vinilo_ancho_cm * i.vinilo_alto_cm) / 10000
 		desglose.push({
 			concepto: `Vinilo (${area_vinilo_m2.toFixed(2)} m²)`,
-			valor: area_vinilo_m2 * p.precio_vinilo_m2
+			valor: area_vinilo_m2 * (p.precio_vinilo_m2 ?? 0)
 		})
 	}
 
@@ -267,9 +267,9 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 			valorEstructura = i.estructura_personalizada
 		} else {
 			const max_dim = Math.max(i.ancho_cm, i.alto_cm)
-			if (max_dim <= 100) valorEstructura = p.estructura_pequena
-			else if (max_dim <= 140) valorEstructura = p.estructura_mediana
-			else valorEstructura = p.estructura_grande
+			if (max_dim <= 100) valorEstructura = p.estructura_pequena ?? 0
+			else if (max_dim <= 140) valorEstructura = p.estructura_mediana ?? 0
+			else valorEstructura = p.estructura_grande ?? 0
 		}
 		desglose.push({ concepto: 'Estructura', valor: valorEstructura })
 	}
@@ -281,9 +281,9 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 			valorMdo = i.mdo_custom
 		} else {
 			const max_dim = Math.max(i.ancho_cm, i.alto_cm)
-			if (max_dim <= 80) valorMdo = p.mdo_pequena
-			else if (max_dim <= 120) valorMdo = p.mdo_mediana
-			else valorMdo = p.mdo_grande
+			if (max_dim <= 80) valorMdo = p.mdo_pequena ?? 0
+			else if (max_dim <= 120) valorMdo = p.mdo_mediana ?? 0
+			else valorMdo = p.mdo_grande ?? 0
 		}
 		desglose.push({ concepto: 'Mano de Obra', valor: valorMdo })
 	}
@@ -291,15 +291,16 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 	// 9. Transporte
 	if (i.con_transporte) {
 		const max_dim = Math.max(i.ancho_cm, i.alto_cm)
-		const valorTransporte = max_dim > 80 ? p.transporte_grande : p.transporte_pequeno
+		const valorTransporte = max_dim > 80 ? (p.transporte_grande ?? 0) : (p.transporte_pequeno ?? 0)
 		desglose.push({ concepto: 'Transporte', valor: valorTransporte })
 	}
 
-	const costoFabricacion = desglose.reduce((s, l) => s + l.valor, 0)
-	const precioExacto = p.margen_ganancia < 1 ? costoFabricacion / (1 - p.margen_ganancia) : costoFabricacion
+	const costoFabricacion = desglose.reduce((s, l) => s + (l.valor || 0), 0)
+	const margen = p.margen_ganancia ?? 0
+	const precioExacto = margen < 1 ? costoFabricacion / (1 - margen) : costoFabricacion
 	const precioCliente = Math.ceil(precioExacto / 1000) * 1000
 
-	return { desglose, costoFabricacion, precioCliente, margen: p.margen_ganancia }
+	return { desglose, costoFabricacion, precioCliente, margen }
 }
 
 // ─── Neon Flex ───────────────────────────────────────────────────────────────
@@ -434,6 +435,8 @@ export function calcularVinilo(i: InputVinilo, p: ParametrosVinilo): ResultadoCa
 export interface InputAcrilio {
 	ancho_cm: number
 	alto_cm: number
+	con_iluminacion: boolean
+	con_microporosa: boolean
 }
 
 export function calcularAcrilio(i: InputAcrilio, p: ParametrosAcrilio): ResultadoCalculo {
@@ -442,21 +445,36 @@ export function calcularAcrilio(i: InputAcrilio, p: ParametrosAcrilio): Resultad
 	// Base acrílico
 	desglose.push({
 		concepto: 'Base acrílico',
-		valor: i.ancho_cm * i.alto_cm * p.precio_cm2_acrilico
+		valor: i.ancho_cm * i.alto_cm * (p.precio_cm2_acrilico ?? 0)
 	})
+
+	// Microporosa
+	if (i.con_microporosa) {
+		desglose.push({
+			concepto: 'Microporosa',
+			valor: i.ancho_cm * i.alto_cm * (p.precio_cm2_microporosa ?? 10)
+		})
+	}
 
 	// Apliques
 	const apliques = p.precio_apliques ?? 0
 	if (apliques > 0) desglose.push({ concepto: 'Apliques', valor: apliques })
 
 	// LED perímetro
-	const perimetro_m = (2 * (i.ancho_cm + i.alto_cm)) / 100
-	desglose.push({
-		concepto: 'LED perímetro',
-		valor: perimetro_m * p.precio_led_m_perimetro
-	})
+	if (i.con_iluminacion) {
+		const perimetro_m = (2 * (i.ancho_cm + i.alto_cm)) / 100
+		desglose.push({
+			concepto: 'LED perímetro',
+			valor: perimetro_m * (p.precio_led_m_perimetro ?? 0)
+		})
+	}
 
-	return resultado(desglose, p.margen_ganancia)
+	const costoFabricacion = desglose.reduce((s, l) => s + (l.valor || 0), 0)
+	const margen = p.margen_ganancia ?? 0
+	const precioExacto = margen < 1 ? costoFabricacion / (1 - margen) : costoFabricacion
+	const precioCliente = Math.ceil(precioExacto / 1000) * 1000
+	
+	return { desglose, costoFabricacion, precioCliente, margen }
 }
 
 // ─── Acrílico Circular ──────────────────────────────────────────────────────
