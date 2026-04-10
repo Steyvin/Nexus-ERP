@@ -1,4 +1,5 @@
 <script lang="ts">
+	import logoNexus from '$lib/assets/NEXUS.png'
 	import { goto } from '$app/navigation'
 	import { fmt } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
@@ -163,6 +164,19 @@
 		}
 	}
 
+	async function toggleFullscreen() {
+		if (!simRef) return
+		try {
+			if (!document.fullscreenElement) {
+				await simRef.requestFullscreen()
+			} else {
+				await document.exitFullscreen()
+			}
+		} catch (e) {
+			mostrarToast('Pantalla completa no soportada', 'error')
+		}
+	}
+
 	// Tamaños calibrados para que cada fuente se vea visualmente del mismo tamaño
 	// (las fuentes script tienen cap-heights muy distintos entre sí)
 	const FONT_SIZES: Record<string, string> = {
@@ -255,20 +269,20 @@
 	function generarDescripcion(): string {
 		switch (tabActiva) {
 			case 'nube':
-				return `Aviso Nube ${nube.ancho_cm}×${nube.alto_cm} cm${nube.apliques.length ? ` + ${nube.apliques.length} apliques` : ''}`
+				return `Aviso Nube ${nube.ancho_cm} X ${nube.alto_cm} cm${nube.apliques.length ? ` + ${nube.apliques.length} apliques` : ''}`
 			case 'letra':
-				return `Aviso Letra ${letra.ancho_cm}×${letra.alto_cm} cm, perim. ${letra.perimetro_cm}cm${letra.apliques.length ? ` + ${letra.apliques.length} apliques` : ''}`
+				return `Aviso Letra ${letra.ancho_cm} X ${letra.alto_cm} cm, perim. ${letra.perimetro_cm}cm${letra.apliques.length ? ` + ${letra.apliques.length} apliques` : ''}`
 			case 'neon': {
 				if (neon.tamano === 'custom') {
-					return `Neon Flex Personalizado ${neon.custom_ancho_cm}×${neon.custom_alto_cm} cm (Acrílico ${neon.custom_grosor})`
+					return `Neon Flex Personalizado ${neon.custom_ancho_cm} X ${neon.custom_alto_cm} cm (Acrílico ${neon.custom_grosor})`
 				}
 				const t = neon.tamano === 'small' ? 'Pequeño' : neon.tamano === 'medium' ? 'Mediano' : 'Grande'
 				return `Neon Flex ${t}`
 			}
 			case 'vinilo':
-				return `Vinilo ${vinilo.ancho_m}×${vinilo.alto_m} m`
+				return `Vinilo ${vinilo.ancho_m} X ${vinilo.alto_m} m`
 			case 'acrilio':
-				return `Acrílico ${acrilio.ancho_cm}×${acrilio.alto_cm} cm`
+				return `Acrílico ${acrilio.ancho_cm} X ${acrilio.alto_cm} cm`
 			case 'acrilio_circular':
 				return `Acrílico Circular ${acrilioCircular.diametro.replace('d', '')} cm`
 			default:
@@ -412,7 +426,7 @@
 										</div>
 										<div class="flex items-center gap-2 pl-8">
 											<input type="number" bind:value={ap.ancho_cm} min="1" class="input-calc flex-1 bg-[#121212] border-0" placeholder="Ancho" />
-											<span class="text-[10px] text-[var(--text-dim)]">×</span>
+											<span class="text-[10px] text-[var(--text-dim)]">X</span>
 											<input type="number" bind:value={ap.alto_cm} min="1" class="input-calc flex-1 bg-[#121212] border-0" placeholder="Alto" />
 										</div>
 									</div>
@@ -617,7 +631,7 @@
 										</div>
 										<div class="flex items-center gap-2 pl-8">
 											<input type="number" bind:value={ap.ancho_cm} min="1" class="input-calc flex-1 bg-[#121212] border-0" placeholder="Ancho" />
-											<span class="text-[10px] text-[var(--text-dim)]">×</span>
+											<span class="text-[10px] text-[var(--text-dim)]">X</span>
 											<input type="number" bind:value={ap.alto_cm} min="1" class="input-calc flex-1 bg-[#121212] border-0" placeholder="Alto" />
 										</div>
 									</div>
@@ -788,26 +802,34 @@
 						<div bind:this={simRef} class="sim-preview-box" style="background: {simFondo};">
 							<!-- Overlay Badge -->
 							{#if resultado}
-							<div class="absolute top-4 left-4 rounded-lg bg-[rgba(0,0,0,0.65)] px-3 py-1.5 backdrop-blur-md border border-[rgba(255,255,255,0.1)] z-20">
-								<span class="block text-[11px] font-semibold text-[rgba(255,255,255,0.95)]">
+							<div class="absolute top-5 left-5 rounded-xl bg-[rgba(0,0,0,0.75)] px-5 py-3.5 backdrop-blur-md border border-[rgba(255,255,255,0.15)] z-20 shadow-xl">
+								<span class="block text-base font-semibold text-[rgba(255,255,255,0.95)] mb-1">
 									{#if neon.tamano === 'custom'}
-										{neon.custom_ancho_cm} × {neon.custom_alto_cm} cm
+										{neon.custom_ancho_cm} X {neon.custom_alto_cm} cm
 									{:else}
-										{(data.parametros.neon as any)?.[neon.tamano]?.medida ?? ''}
+										{((data.parametros.neon as any)?.[neon.tamano]?.medida ?? '').replace(/(?:×|├ù)/gi, ' X ').replace(/ +X +/g, ' X ').trim()}
 									{/if}
 								</span>
-								<span class="block text-[11px] text-[var(--brand-light)] font-bold opacity-90">{fmt(resultado.precioCliente)}</span>
+								<span class="block text-2xl text-[var(--brand-light)] font-bold opacity-100 drop-shadow-md mt-0.5">{fmt(resultado.precioCliente)}</span>
 							</div>
 							{/if}
-							<div class="sim-acrylic" style="filter: url(#neon-acrylic-filter);">
-								<div
-									class="sim-neon-text"
-									style="font-family: '{simFuente}', cursive, sans-serif; font-size: {simFontSize}; line-height: {simLineHeight}; text-align: {simAlign}; text-shadow: {simGlow};"
-								>{@html simTexto.replace(/\n/g, '<br>')}</div>
+							<div class="flex flex-col items-center justify-center gap-[4.5rem] z-10 w-full relative pt-8">
+								<div class="sim-acrylic" style="filter: url(#neon-acrylic-filter);">
+									<div
+										class="sim-neon-text"
+										style="font-family: '{simFuente}', cursive, sans-serif; font-size: {simFontSize}; line-height: {simLineHeight}; text-align: {simAlign}; text-shadow: {simGlow};"
+									>{@html simTexto.replace(/\n/g, '<br>')}</div>
+								</div>
+								
+								<img src={logoNexus} alt="Nexus LED" class="h-9 opacity-35 pointer-events-none" />
 							</div>
 						</div>
 
 						<div class="flex gap-2 justify-end -mt-2">
+							<button onclick={toggleFullscreen} class="btn-secondary rounded-lg px-3 py-1.5 text-[11px] flex items-center gap-1.5 bg-[#0a0a0a]" title="Pantalla completa">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+								Completa
+							</button>
 							<button onclick={copiarSimulacion} class="btn-secondary rounded-lg px-3 py-1.5 text-[11px] flex items-center gap-1.5 bg-[#0a0a0a]">
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
 								Copiar
@@ -949,9 +971,9 @@
 							<label class="label-field">Tamaño</label>
 							<div class="grid grid-cols-2 gap-2">
 								{#each [
-									{ val: 'small', label: 'Pequeño', sub: (data.parametros.neon as any)?.small?.medida ?? '' },
-									{ val: 'medium', label: 'Mediano', sub: (data.parametros.neon as any)?.medium?.medida ?? '' },
-									{ val: 'large', label: 'Grande', sub: (data.parametros.neon as any)?.large?.medida ?? '' },
+									{ val: 'small', label: 'Pequeño', sub: ((data.parametros.neon as any)?.small?.medida ?? '').replace(/(?:×|├ù)/gi, ' X ').replace(/ +X +/g, ' X ').trim() },
+									{ val: 'medium', label: 'Mediano', sub: ((data.parametros.neon as any)?.medium?.medida ?? '').replace(/(?:×|├ù)/gi, ' X ').replace(/ +X +/g, ' X ').trim() },
+									{ val: 'large', label: 'Grande', sub: ((data.parametros.neon as any)?.large?.medida ?? '').replace(/(?:×|├ù)/gi, ' X ').replace(/ +X +/g, ' X ').trim() },
 									{ val: 'custom', label: 'Tamaño personalizado', sub: 'Ingresar medidas del acrílico' }
 								] as opt}
 									<button
@@ -1159,7 +1181,7 @@
 		</div>
 
 		<!-- Panel de resultados -->
-		<div class="lg:col-span-5 flex flex-col gap-6">
+		<div class="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-24 self-start w-full">
 			<div class="modern-card relative overflow-hidden">
 				<div class="card-header mb-4 relative z-10">
 					<div class="card-icon">💰</div>

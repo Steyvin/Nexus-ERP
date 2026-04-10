@@ -73,7 +73,7 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 	// 1. Tapa acrílico (área del aviso × $15/cm²)
 	const areaTapa = i.ancho_cm * i.alto_cm
 	desglose.push({
-		concepto: `Tapa acrílico (${i.ancho_cm}×${i.alto_cm} cm)`,
+		concepto: `Tapa acrílico (${i.ancho_cm} X ${i.alto_cm} cm)`,
 		valor: areaTapa * p.precio_cm2_acrilico
 	})
 
@@ -100,7 +100,7 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 	const anchoFaja = i.faja_ancho_cm > 0 ? i.faja_ancho_cm : 6
 	const areaFaja = perimetro * anchoFaja
 	desglose.push({
-		concepto: `Faja (${perimetro}×${anchoFaja} cm = ${areaFaja} cm²)`,
+		concepto: `Faja (${perimetro} X ${anchoFaja} cm = ${areaFaja} cm²)`,
 		valor: areaFaja * p.precio_faja_cm2
 	})
 
@@ -126,7 +126,7 @@ export function calcularNube(i: InputNube, p: ParametrosNube): ResultadoCalculo 
 	if (i.con_vinilo && i.vinilo_ancho_cm > 0 && i.vinilo_alto_cm > 0) {
 		const areaM2 = (i.vinilo_ancho_cm * i.vinilo_alto_cm) / 10000
 		desglose.push({
-			concepto: `Vinilo (${i.vinilo_ancho_cm}×${i.vinilo_alto_cm} cm = ${areaM2.toFixed(2)} m²)`,
+			concepto: `Vinilo (${i.vinilo_ancho_cm} X ${i.vinilo_alto_cm} cm = ${areaM2.toFixed(2)} m²)`,
 			valor: areaM2 * p.precio_vinilo_m2
 		})
 	}
@@ -236,7 +236,7 @@ export function calcularLetra(i: InputLetra, p: ParametrosLetra): ResultadoCalcu
 		// Área total = tiras × largo de cada tira (120 cm) × grosor
 		const areaFaja = numFajas * 120 * anchoFaja
 		desglose.push({
-			concepto: `Faja perimetral (${numFajas} tiras × ${anchoFaja} cm = ${areaFaja} cm²)`,
+			concepto: `Faja perimetral (${numFajas} tiras X ${anchoFaja} cm = ${areaFaja} cm²)`,
 			valor: areaFaja * (p.precio_faja_cm2 ?? 0)
 		})
 	}
@@ -321,7 +321,7 @@ const FACTOR_6MM = 60 / 45 // ~1.333 — sobrecosto del acrílico 6mm vs 3mm
 
 // Parsea "80 × 50 cm" → { ancho: 80, alto: 50 }
 function parseMedida(medida: string): { ancho: number; alto: number } | null {
-	const m = medida.replace(/\s/g, '').match(/(\d+)[x×](\d+)/i)
+	const m = medida.replace(/\s/g, '').match(/(\d+)[x×├ù]+(\d+)/i)
 	if (!m) return null
 	return { ancho: Number(m[1]), alto: Number(m[2]) }
 }
@@ -369,7 +369,7 @@ export function calcularNeon(i: InputNeon, p: ParametrosNeon): ResultadoCalculo 
 
 		const precioBase = areaCustom * precioCm2Base * factorGrosor
 		desglose.push({
-			concepto: `Neon personalizado ${i.custom_ancho_cm}×${i.custom_alto_cm} cm — acrílico ${i.custom_grosor}`,
+			concepto: `Neon personalizado ${i.custom_ancho_cm} X ${i.custom_alto_cm} cm — acrílico ${i.custom_grosor}`,
 			valor: precioBase
 		})
 
@@ -377,7 +377,7 @@ export function calcularNeon(i: InputNeon, p: ParametrosNeon): ResultadoCalculo 
 			const areaM2 = (i.custom_vinilo_ancho_cm * i.custom_vinilo_alto_cm) / 10000
 			const precioVinilo = p.precio_vinilo_m2 ?? 0
 			desglose.push({
-				concepto: `Vinilo (${i.custom_vinilo_ancho_cm}×${i.custom_vinilo_alto_cm} cm = ${areaM2.toFixed(2)} m²)`,
+				concepto: `Vinilo (${i.custom_vinilo_ancho_cm} X ${i.custom_vinilo_alto_cm} cm = ${areaM2.toFixed(2)} m²)`,
 				valor: areaM2 * precioVinilo
 			})
 		}
@@ -389,7 +389,7 @@ export function calcularNeon(i: InputNeon, p: ParametrosNeon): ResultadoCalculo 
 
 	const tier = p[i.tamano]
 	desglose.push({
-		concepto: `Neon ${i.tamano === 'small' ? 'Pequeño' : i.tamano === 'medium' ? 'Mediano' : 'Grande'} (${tier.medida})`,
+		concepto: `Neon ${i.tamano === 'small' ? 'Pequeño' : i.tamano === 'medium' ? 'Mediano' : 'Grande'} (${tier.medida.replace(/(?:×|├ù)/gi, ' X ').replace(/ +X +/g, ' X ').trim()})`,
 		valor: tier.precio
 	})
 
