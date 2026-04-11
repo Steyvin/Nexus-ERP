@@ -17,13 +17,16 @@
 	} = $props()
 
 	let subiendo = $state(false)
-	let inputRef = $state<HTMLInputElement | null>(null)
+	let galeriaRef = $state<HTMLInputElement | null>(null)
+	let camaraRef  = $state<HTMLInputElement | null>(null)
 	let previewUrl = $derived(value || '')
 
 	async function handleFile(e: Event) {
 		const input = e.target as HTMLInputElement
 		const file = input.files?.[0]
 		if (!file) return
+		// Limpiar el input para permitir re-selección del mismo archivo
+		input.value = ''
 
 		subiendo = true
 		const { url, error } = await subirImagenComprimida(file, carpeta)
@@ -42,7 +45,8 @@
 	function eliminar() {
 		value = ''
 		onchange?.(undefined)
-		if (inputRef) inputRef.value = ''
+		if (galeriaRef) galeriaRef.value = ''
+		if (camaraRef)  camaraRef.value  = ''
 	}
 </script>
 
@@ -56,25 +60,39 @@
 					<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 				</button>
 			</div>
+		{:else if subiendo}
+			<div class="img-upload-btn-compact uploading">
+				<span class="img-spinner"></span>
+				<span>Subiendo...</span>
+			</div>
 		{:else}
-			<label class="img-upload-btn-compact" class:uploading={subiendo}>
-				<input
-					bind:this={inputRef}
-					type="file"
-					accept="image/*"
-					capture="environment"
-					onchange={handleFile}
-					class="hidden"
-					disabled={subiendo}
-				/>
-				{#if subiendo}
-					<span class="img-spinner"></span>
-					<span>Subiendo...</span>
-				{:else}
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-					<span>{placeholder}</span>
-				{/if}
-			</label>
+			<div class="img-compact-row">
+				<!-- Galería -->
+				<label class="img-compact-opt">
+					<input
+						bind:this={galeriaRef}
+						type="file"
+						accept="image/*"
+						onchange={handleFile}
+						class="hidden"
+					/>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+					<span>Galería</span>
+				</label>
+				<!-- Cámara -->
+				<label class="img-compact-opt">
+					<input
+						bind:this={camaraRef}
+						type="file"
+						accept="image/*"
+						capture="environment"
+						onchange={handleFile}
+						class="hidden"
+					/>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+					<span>Cámara</span>
+				</label>
+			</div>
 		{/if}
 	</div>
 {:else}
@@ -87,43 +105,67 @@
 					<a href={previewUrl} target="_blank" rel="noopener" class="img-action-btn" title="Ver imagen">
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
 					</a>
-					<label class="img-action-btn" title="Cambiar imagen">
+					<label class="img-action-btn" title="Cambiar — galería">
 						<input
-							bind:this={inputRef}
+							bind:this={galeriaRef}
+							type="file"
+							accept="image/*"
+							onchange={handleFile}
+							class="hidden"
+						/>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+					</label>
+					<label class="img-action-btn" title="Cambiar — cámara">
+						<input
+							bind:this={camaraRef}
 							type="file"
 							accept="image/*"
 							capture="environment"
 							onchange={handleFile}
 							class="hidden"
-							disabled={subiendo}
 						/>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
 					</label>
 					<button type="button" onclick={eliminar} class="img-action-btn img-action-danger" title="Eliminar imagen">
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 					</button>
 				</div>
 			</div>
+		{:else if subiendo}
+			<div class="img-dropzone uploading">
+				<span class="img-spinner-lg"></span>
+				<span class="img-dropzone-text">Subiendo imagen...</span>
+			</div>
 		{:else}
-			<label class="img-dropzone" class:uploading={subiendo}>
-				<input
-					bind:this={inputRef}
-					type="file"
-					accept="image/*"
-					capture="environment"
-					onchange={handleFile}
-					class="hidden"
-					disabled={subiendo}
-				/>
-				{#if subiendo}
-					<span class="img-spinner-lg"></span>
-					<span class="img-dropzone-text">Subiendo imagen...</span>
-				{:else}
-					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="img-dropzone-icon"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-					<span class="img-dropzone-text">{placeholder}</span>
-					<span class="img-dropzone-hint">Toca para subir foto o tomar una</span>
-				{/if}
-			</label>
+			<div class="img-full-row">
+				<!-- Galería -->
+				<label class="img-full-opt">
+					<input
+						bind:this={galeriaRef}
+						type="file"
+						accept="image/*"
+						onchange={handleFile}
+						class="hidden"
+					/>
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="img-opt-icon"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+					<span class="img-opt-label">Subir imagen</span>
+					<span class="img-opt-hint">Desde galería o archivos</span>
+				</label>
+				<!-- Cámara -->
+				<label class="img-full-opt">
+					<input
+						bind:this={camaraRef}
+						type="file"
+						accept="image/*"
+						capture="environment"
+						onchange={handleFile}
+						class="hidden"
+					/>
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="img-opt-icon"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+					<span class="img-opt-label">Tomar foto</span>
+					<span class="img-opt-hint">Abrir cámara</span>
+				</label>
+			</div>
 		{/if}
 	</div>
 {/if}
@@ -134,6 +176,35 @@
 	/* ── Compacto ── */
 	.img-upload-compact { width: 100%; }
 
+	.img-compact-row {
+		display: flex;
+		gap: 6px;
+		width: 100%;
+	}
+
+	.img-compact-opt {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		padding: 6px 8px;
+		border-radius: 8px;
+		border: 1px dashed rgba(255,255,255,0.15);
+		background: rgba(255,255,255,0.03);
+		cursor: pointer;
+		font-size: 0.72rem;
+		color: var(--text-dim);
+		transition: all 0.2s;
+		white-space: nowrap;
+	}
+	.img-compact-opt:hover {
+		border-color: rgba(255,255,255,0.3);
+		background: rgba(255,255,255,0.06);
+		color: var(--text-muted);
+	}
+
+	/* spinner compacto reutilizado */
 	.img-upload-btn-compact {
 		display: flex;
 		align-items: center;
@@ -142,21 +213,11 @@
 		border-radius: 8px;
 		border: 1px dashed rgba(255,255,255,0.15);
 		background: rgba(255,255,255,0.03);
-		cursor: pointer;
 		font-size: 0.72rem;
 		color: var(--text-dim);
-		transition: all 0.2s;
 		width: 100%;
 	}
-	.img-upload-btn-compact:hover {
-		border-color: rgba(255,255,255,0.3);
-		background: rgba(255,255,255,0.06);
-		color: var(--text-muted);
-	}
-	.img-upload-btn-compact.uploading {
-		pointer-events: none;
-		opacity: 0.7;
-	}
+	.img-upload-btn-compact.uploading { pointer-events: none; opacity: 0.7; }
 
 	.img-preview-compact {
 		display: flex;
@@ -192,6 +253,42 @@
 	/* ── Completo ── */
 	.img-upload-full { width: 100%; }
 
+	.img-full-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 10px;
+	}
+
+	.img-full-opt {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 20px 12px;
+		border: 2px dashed rgba(255,255,255,0.12);
+		border-radius: 12px;
+		background: rgba(255,255,255,0.02);
+		cursor: pointer;
+		transition: all 0.2s;
+		text-align: center;
+	}
+	.img-full-opt:hover {
+		border-color: rgba(255,255,255,0.25);
+		background: rgba(255,255,255,0.04);
+	}
+	.img-opt-icon { color: var(--text-dim); }
+	.img-opt-label {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+	.img-opt-hint {
+		font-size: 0.68rem;
+		color: var(--text-dim);
+	}
+
+	/* dropzone spinner */
 	.img-dropzone {
 		display: flex;
 		flex-direction: column;
@@ -202,29 +299,13 @@
 		border: 2px dashed rgba(255,255,255,0.12);
 		border-radius: 12px;
 		background: rgba(255,255,255,0.02);
-		cursor: pointer;
-		transition: all 0.2s;
 		text-align: center;
 	}
-	.img-dropzone:hover {
-		border-color: rgba(255,255,255,0.25);
-		background: rgba(255,255,255,0.04);
-	}
-	.img-dropzone.uploading {
-		pointer-events: none;
-		opacity: 0.7;
-	}
-	.img-dropzone-icon {
-		color: var(--text-dim);
-	}
+	.img-dropzone.uploading { pointer-events: none; opacity: 0.7; }
 	.img-dropzone-text {
 		font-size: 0.85rem;
 		font-weight: 500;
 		color: var(--text-muted);
-	}
-	.img-dropzone-hint {
-		font-size: 0.7rem;
-		color: var(--text-dim);
 	}
 
 	.img-preview-full {
