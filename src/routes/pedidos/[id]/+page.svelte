@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms'
 	import { fmt, fmtFecha, fmtRelativa } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
+	import { subirImagenComprimida } from '$lib/utils/upload'
 	import { ESTADOS_PEDIDO, ESTADO_ITEM_LABEL } from '$lib/types'
 	import type { EstadoItem } from '$lib/types'
 	import type { PageData } from './$types'
@@ -582,12 +583,50 @@
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (subiendoDiseno = null)}>
 		<div class="mx-4 w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
 			<h3 class="text-lg font-semibold text-[var(--text)]">Subir archivo de diseño</h3>
-			<p class="mt-1 text-xs text-[var(--text-muted)]">Ingresa la URL del archivo de diseño aprobado</p>
+			<p class="mt-1 text-xs text-[var(--text-muted)]">Sube una imagen o foto del diseño</p>
+
+			{#if urlDiseno}
+				<div class="mt-4 relative rounded-xl overflow-hidden border border-[var(--border)]">
+					<img src={urlDiseno} alt="Diseño" class="w-full max-h-48 object-contain bg-[#080808]" />
+					<button
+						type="button"
+						onclick={() => { urlDiseno = '' }}
+						class="absolute top-2 right-2 flex items-center justify-center w-7 h-7 rounded-lg bg-black/70 backdrop-blur border border-white/15 text-white/80 hover:text-red-400 hover:border-red-400/40 transition-colors"
+						title="Eliminar"
+					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					</button>
+				</div>
+			{:else}
+				<label class="mt-4 flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed border-white/12 rounded-xl bg-white/2 cursor-pointer hover:border-white/25 hover:bg-white/4 transition-all">
+					<input
+						type="file"
+						accept="image/*"
+						capture="environment"
+						class="hidden"
+						onchange={async (e) => {
+							const input = e.target as HTMLInputElement
+							const file = input.files?.[0]
+							if (!file) return
+							const { url, error } = await subirImagenComprimida(file, 'disenos')
+							if (error) {
+								mostrarToast('Error al subir imagen: ' + error, 'error')
+								return
+							}
+							urlDiseno = url
+							mostrarToast('Imagen subida')
+						}}
+					/>
+					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--text-dim)]"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+					<span class="text-sm font-medium text-[var(--text-muted)]">Subir imagen o tomar foto</span>
+					<span class="text-[10px] text-[var(--text-dim)]">Toca para seleccionar del dispositivo</span>
+				</label>
+			{/if}
 
 			<form method="POST" action="?/subirDiseno" use:enhance={() => {
 				return async ({ result }) => {
 					if (result.type === 'success') {
-						mostrarToast('Diseño subido')
+						mostrarToast('Diseño guardado')
 						subiendoDiseno = null
 						invalidateAll()
 					}
@@ -596,18 +635,12 @@
 				<input type="hidden" name="item_id" value={subiendoDiseno} />
 				<input type="hidden" name="pedido_id" value={ped.id} />
 				<input type="hidden" name="descripcion" value={descripcionDiseno} />
-				<input
-					type="url"
-					name="archivo_url"
-					bind:value={urlDiseno}
-					placeholder="https://drive.google.com/..."
-					class="mt-4 w-full input-field"
-				/>
+				<input type="hidden" name="archivo_url" value={urlDiseno} />
 				<div class="mt-4 flex justify-end gap-3">
 					<button type="button" onclick={() => (subiendoDiseno = null)}
 						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
 					>Cancelar</button>
-					<button type="submit" class="btn-primary rounded-lg px-5 py-2 text-sm font-medium">Guardar</button>
+					<button type="submit" disabled={!urlDiseno} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-40">Guardar</button>
 				</div>
 			</form>
 		</div>

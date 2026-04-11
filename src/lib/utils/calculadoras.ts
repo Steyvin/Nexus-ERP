@@ -187,8 +187,10 @@ export interface InputLetra {
 	perimetro_cm: number
 	faja_grosor_custom: boolean
 	faja_ancho_cm: number
+	cantidad_apliques: number
 	apliques: ApliqueNube[]
 	con_estructura: boolean
+	estructura_personalizada_activa: boolean
 	estructura_personalizada: number
 	mdo_personalizada: boolean
 	mdo_custom: number
@@ -404,18 +406,23 @@ export function calcularNeon(i: InputNeon, p: ParametrosNeon): ResultadoCalculo 
 
 // ─── Vinilo ──────────────────────────────────────────────────────────────────
 
+export interface PedazoVinilo {
+	ancho_cm: number
+	alto_cm: number
+}
+
 export interface InputVinilo {
-	ancho_m: number
-	alto_m: number
+	cantidad_pedazos: number
+	pedazos: PedazoVinilo[]
 	con_instalacion: boolean
 }
 
 export function calcularVinilo(i: InputVinilo, p: ParametrosVinilo): ResultadoCalculo {
-	const area_m2 = i.ancho_m * i.alto_m
+	const area_m2 = i.pedazos.reduce((sum, pedazo) => sum + (pedazo.ancho_cm * pedazo.alto_cm) / 10000, 0)
 	const desglose: LineaDesglose[] = []
 
 	desglose.push({
-		concepto: `Vinilo (${area_m2.toFixed(2)} m²)`,
+		concepto: `Vinilo (${i.pedazos.length} ${i.pedazos.length === 1 ? 'pieza' : 'piezas'}, ${area_m2.toFixed(2)} m²)`,
 		valor: area_m2 * p.precio_m2
 	})
 

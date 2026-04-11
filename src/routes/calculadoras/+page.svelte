@@ -15,7 +15,7 @@
 		calcularAcrilioCircular
 	} from '$lib/utils/calculadoras'
 	import { TODOS_COLORES } from '$lib/utils/calculadoras'
-	import type { ApliqueNube, ColorAplique } from '$lib/utils/calculadoras'
+	import type { ApliqueNube, ColorAplique, InputLetra } from '$lib/utils/calculadoras'
 	import ColorSelect from './ColorSelect.svelte'
 	import type {
 		ParametrosNube,
@@ -71,6 +71,7 @@
 		cantidad_apliques: 0,
 		apliques: [],
 		con_estructura: false,
+		estructura_personalizada_activa: false,
 		estructura_personalizada: 0,
 		mdo_personalizada: false,
 		mdo_custom: 0,
@@ -128,7 +129,30 @@
 		custom_vinilo_ancho_cm: 60,
 		custom_vinilo_alto_cm: 40
 	})
-	let vinilo = $state({ ancho_m: 1, alto_m: 1, con_instalacion: false })
+	let vinilo = $state<{
+		cantidad_pedazos: number
+		pedazos: { ancho_cm: number; alto_cm: number }[]
+		con_instalacion: boolean
+	}>({
+		cantidad_pedazos: 1,
+		pedazos: [{ ancho_cm: 100, alto_cm: 100 }],
+		con_instalacion: false
+	})
+
+	// Sincronizar cantidad de pedazos de vinilo
+	$effect(() => {
+		const cant = typeof vinilo.cantidad_pedazos === 'number' && !isNaN(vinilo.cantidad_pedazos) ? Math.max(1, vinilo.cantidad_pedazos) : 1
+		const actual = vinilo.pedazos.length
+		if (cant > actual) {
+			const nuevos = []
+			for (let i = 0; i < cant - actual; i++) {
+				nuevos.push({ ancho_cm: 100, alto_cm: 100 })
+			}
+			vinilo.pedazos = [...vinilo.pedazos, ...nuevos]
+		} else if (cant < actual) {
+			vinilo.pedazos = vinilo.pedazos.slice(0, cant)
+		}
+	})
 
 	// ── Simulador Neon ──
 	let simTexto = $state('Tu Texto')
@@ -279,8 +303,13 @@
 				const t = neon.tamano === 'small' ? 'Pequeño' : neon.tamano === 'medium' ? 'Mediano' : 'Grande'
 				return `Neon Flex ${t}`
 			}
-			case 'vinilo':
-				return `Vinilo ${vinilo.ancho_m} X ${vinilo.alto_m} m`
+			case 'vinilo': {
+				if (vinilo.pedazos.length === 1) {
+					return `Vinilo ${vinilo.pedazos[0].ancho_cm} X ${vinilo.pedazos[0].alto_cm} cm`
+				}
+				const area_total = vinilo.pedazos.reduce((sum, p) => sum + (p.ancho_cm * p.alto_cm) / 10000, 0)
+				return `Vinilo (${vinilo.pedazos.length} piezas, total ${area_total.toFixed(2)} m²)`
+			}
 			case 'acrilio':
 				return `Acrílico ${acrilio.ancho_cm} X ${acrilio.alto_cm} cm`
 			case 'acrilio_circular':
@@ -389,7 +418,7 @@
 									<div class="mt-4 grid grid-cols-2 gap-3">
 										<div>
 											<label class="label-field">Perímetro faja (cm)</label>
-											<input type="number" bind:value={nube.perimetro_cm} min="0" class="input-calc" />
+											<input type="number" bind:value={nube.perimetro_manual} min="0" class="input-calc" />
 											<p class="mt-1 text-[10px] text-[var(--text-dim)]">0 = auto ({nube.ancho_cm * 2 + nube.alto_cm * 2} cm)</p>
 										</div>
 										<div>
@@ -1079,21 +1108,39 @@
 					<div class="sc-header">
 						<div class="sc-icon">🖼️</div>
 						<div class="sc-texts">
-							<h3 class="sc-title">Rollo o Pliego</h3>
-							<p class="sc-desc">Ancho y alto en metros</p>
+							<h3 class="sc-title">Trozos de Vinilo</h3>
+							<p class="sc-desc">Medidas por piezas (en centímetros)</p>
 						</div>
 					</div>
 					<div class="sc-content">
-						<div class="grid grid-cols-2 gap-3">
-							<div>
-								<label class="label-field">Ancho (m)</label>
-								<input type="number" bind:value={vinilo.ancho_m} min="0.1" step="0.1" class="input-calc" />
-							</div>
-							<div>
-								<label class="label-field">Alto (m)</label>
-								<input type="number" bind:value={vinilo.alto_m} min="0.1" step="0.1" class="input-calc" />
-							</div>
+						<div>
+							<label class="label-field">¿Cuántos pedazos requieres?</label>
+							<input type="number" bind:value={vinilo.cantidad_pedazos} min="1" max="50" class="input-calc" placeholder="Ej: 1" />
 						</div>
+
+						{#if vinilo.pedazos.length > 0}
+							<div class="space-y-3 rounded-lg bg-[#080808] border border-[var(--border)] p-4">
+								{#each vinilo.pedazos as p, idx}
+									<div class="space-y-2 {idx > 0 ? 'border-t border-[var(--border)] pt-3' : ''}">
+										<div class="flex items-center gap-2">
+											<span class="w-6 text-center text-xs font-semibold text-[var(--text-dim)]">{idx + 1}</span>
+											<span class="text-sm font-medium text-[var(--text)]">Pieza {idx + 1}</span>
+										</div>
+										<div class="flex items-center gap-2 pl-8">
+											<div class="flex-1">
+												<label class="text-[10px] text-[var(--text-dim)] uppercase tracking-wider mb-1 block">Ancho (cm)</label>
+												<input type="number" bind:value={p.ancho_cm} min="1" step="1" class="input-calc w-full bg-[#121212] border-0" placeholder="Ancho" />
+											</div>
+											<span class="text-[10px] text-[var(--text-dim)] translate-y-3">X</span>
+											<div class="flex-1">
+												<label class="text-[10px] text-[var(--text-dim)] uppercase tracking-wider mb-1 block">Alto (cm)</label>
+												<input type="number" bind:value={p.alto_cm} min="1" step="1" class="input-calc w-full bg-[#121212] border-0" placeholder="Alto" />
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				</div>
 				<div class="section-card">

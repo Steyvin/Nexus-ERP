@@ -4,8 +4,9 @@
 	import { supabase } from '$lib/supabase'
 	import { session } from '$lib/stores/auth'
 	import { mostrarToast } from '$lib/stores/ui'
-	import { items, eliminarItem, actualizarPrecio, limpiarCarrito } from '$lib/stores/carrito'
+	import { items, eliminarItem, actualizarPrecio, actualizarArchivoDiseno, limpiarCarrito } from '$lib/stores/carrito'
 	import { fmt } from '$lib/utils/format'
+	import ImageUpload from '$lib/components/ImageUpload.svelte'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
@@ -163,11 +164,12 @@
 										</p>
 										
 										<div class="mt-3 max-w-sm">
-											<input
-												type="url"
-												placeholder="URL imagen de referencia (opcional)"
-												bind:value={$items[idx].archivo_diseno_url}
-												class="w-full rounded-md border border-[var(--border)] bg-[var(--bg-card-2)] px-2 py-1.5 text-xs text-[var(--text)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--brand)]"
+											<ImageUpload
+												value={item.archivo_diseno_url ?? ''}
+												onchange={(url) => actualizarArchivoDiseno(item.id, url)}
+												carpeta="disenos"
+												placeholder="Foto de referencia"
+												compact={true}
 											/>
 										</div>
 									</div>
@@ -216,13 +218,11 @@
 						></textarea>
 					</div>
 					<div>
-						<label for="imagen" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">Imagen de referencia (URL, opcional)</label>
-						<input
-							id="imagen"
-							type="url"
+						<label class="mb-2 block text-xs font-medium text-[var(--text-muted)]">Imagen de referencia (opcional)</label>
+						<ImageUpload
 							bind:value={imagenUrl}
-							placeholder="https://..."
-							class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card-2)] px-3 py-2 text-sm text-[var(--text)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--brand)]"
+							carpeta="cotizaciones"
+							placeholder="Subir imagen de referencia"
 						/>
 					</div>
 				</div>
