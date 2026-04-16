@@ -41,7 +41,9 @@
 		if ($esDiseñador)
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
-				{ href: '/pedidos', label: 'Mis Pedidos', icon: 'package' }
+				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
+				{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
+				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' }
 			]
 		if ($esFinanzas)
 			return [

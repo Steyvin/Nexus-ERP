@@ -74,7 +74,7 @@ export const actions: Actions = {
 			email,
 			password: clave,
 			email_confirm: true,
-			user_metadata: { nombre }
+			user_metadata: { nombre, rol }
 		})
 
 		if (error) {
@@ -87,10 +87,18 @@ export const actions: Actions = {
 
 		// Actualizar el rol y guardar la clave en texto plano
 		if (newUser?.user) {
-			await supabaseAdmin
+			const { error: updateError } = await supabaseAdmin
 				.from('perfiles')
 				.update({ rol, clave_texto: clave })
 				.eq('id', newUser.user.id)
+
+			if (updateError) {
+				// El usuario fue creado en auth pero el rol no se pudo asignar
+				console.error('Error al asignar rol:', updateError)
+				return fail(500, {
+					error: `Usuario creado pero no se pudo asignar el rol "${rol}": ${updateError.message}`
+				})
+			}
 		}
 
 		return { success: true, mensaje: `Usuario ${nombre} creado exitosamente` }
@@ -115,7 +123,7 @@ export const actions: Actions = {
 			.update({ rol })
 			.eq('id', userId)
 
-		if (error) return fail(500, { error: 'Error al actualizar rol' })
+		if (error) return fail(500, { error: `Error al actualizar rol: ${error.message}` })
 		return { success: true }
 	},
 

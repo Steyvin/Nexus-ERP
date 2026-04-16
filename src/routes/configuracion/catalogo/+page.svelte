@@ -1,40 +1,40 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabase'
-	import { mostrarToast } from '$lib/stores/ui'
-	import { fmt } from '$lib/utils/format'
-	import { TIPO_LABEL } from '$lib/types'
-	import type { TipoProducto, CatalogoParametros } from '$lib/types'
-	import type { PageData } from './$types'
+	import { supabase } from '$lib/supabase';
+	import { mostrarToast } from '$lib/stores/ui';
+	import { fmt } from '$lib/utils/format';
+	import { TIPO_LABEL } from '$lib/types';
+	import type { TipoProducto, CatalogoParametros } from '$lib/types';
+	import type { PageData } from './$types';
 
-	let { data }: { data: PageData } = $props()
+	let { data }: { data: PageData } = $props();
 
 	// Estado de edición
-	let abierto = $state<string | null>(null)
-	let guardando = $state<string | null>(null)
-	let editando = $state<Record<string, Record<string, unknown>>>({})
+	let abierto = $state<string | null>(null);
+	let guardando = $state<string | null>(null);
+	let editando = $state<Record<string, Record<string, unknown>>>({});
 
 	// Inicializar datos editables
 	$effect(() => {
-		const e: Record<string, Record<string, unknown>> = {}
+		const e: Record<string, Record<string, unknown>> = {};
 		for (const item of data.catalogo) {
-			e[item.id] = structuredClone(item.parametros as Record<string, unknown>)
+			e[item.id] = structuredClone(item.parametros as Record<string, unknown>);
 		}
-		editando = e
-	})
+		editando = e;
+	});
 
 	function toggleAbierto(id: string) {
-		abierto = abierto === id ? null : id
+		abierto = abierto === id ? null : id;
 	}
 
 	async function guardar(item: CatalogoParametros) {
-		guardando = item.id
+		guardando = item.id;
 		const { error } = await supabase
 			.from('catalogo_parametros')
 			.update({ parametros: editando[item.id] })
-			.eq('id', item.id)
-		guardando = null
-		if (error) return mostrarToast('Error al guardar: ' + error.message, 'error')
-		mostrarToast(`${item.nombre} actualizado`)
+			.eq('id', item.id);
+		guardando = null;
+		if (error) return mostrarToast('Error al guardar: ' + error.message, 'error');
+		mostrarToast(`${item.nombre} actualizado`);
 	}
 
 	// Labels descriptivos para cada clave de parámetro
@@ -71,18 +71,18 @@
 		d60: { label: 'Diámetro 60 cm', sufijo: '$' },
 		d70: { label: 'Diámetro 70 cm', sufijo: '$' },
 		d80: { label: 'Diámetro 80 cm', sufijo: '$' }
-	}
+	};
 
 	function esObjetoAnidado(val: unknown): val is Record<string, unknown> {
-		return typeof val === 'object' && val !== null && !Array.isArray(val)
+		return typeof val === 'object' && val !== null && !Array.isArray(val);
 	}
 
 	function getLabel(key: string): string {
-		return PARAM_INFO[key]?.label ?? key
+		return PARAM_INFO[key]?.label ?? key;
 	}
 
 	function getSufijo(key: string): string {
-		return PARAM_INFO[key]?.sufijo ?? ''
+		return PARAM_INFO[key]?.sufijo ?? '';
 	}
 </script>
 
@@ -94,7 +94,9 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-xl font-semibold text-[var(--text)]">Catálogo de productos</h1>
-			<p class="mt-1 text-sm text-[var(--text-muted)]">Configura los parámetros de precios de cada producto</p>
+			<p class="mt-1 text-sm text-[var(--text-muted)]">
+				Configura los parámetros de precios de cada producto
+			</p>
 		</div>
 	</div>
 
@@ -108,19 +110,44 @@
 					class="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-[rgba(255,255,255,0.02)]"
 				>
 					<div class="flex items-center gap-3">
-						<span class="flex h-8 w-8 items-center justify-center rounded-lg {item.activo ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}">
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+						<span
+							class="flex h-8 w-8 items-center justify-center rounded-lg {item.activo
+								? 'bg-green-500/15 text-green-400'
+								: 'bg-red-500/15 text-red-400'}"
+						>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline
+									points="2 17 12 22 22 17"
+								/><polyline points="2 12 12 17 22 12" /></svg
+							>
 						</span>
 						<div>
 							<span class="text-sm font-medium text-[var(--text)]">{item.nombre}</span>
-							<span class="ml-2 text-[10px] text-[var(--text-dim)]">{TIPO_LABEL[item.tipo as TipoProducto] ?? item.tipo}</span>
+							<span class="ml-2 text-[10px] text-[var(--text-dim)]"
+								>{TIPO_LABEL[item.tipo as TipoProducto] ?? item.tipo}</span
+							>
 						</div>
 					</div>
 					<svg
-						width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-						stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
 						class="text-[var(--text-dim)] transition-transform {isOpen ? 'rotate-180' : ''}"
-					><polyline points="6 9 12 15 18 9"/></svg>
+						><polyline points="6 9 12 15 18 9" /></svg
+					>
 				</button>
 
 				<!-- Contenido expandible -->
@@ -131,18 +158,23 @@
 								{#if esObjetoAnidado(valor)}
 									<!-- Objeto anidado (ej: neon tiers) -->
 									<div class="col-span-full rounded-lg border border-[var(--border)] p-3">
-										<p class="mb-2 text-xs font-medium text-[var(--text-muted)]">{getLabel(key) || key}</p>
+										<p class="mb-2 text-xs font-medium text-[var(--text-muted)]">
+											{getLabel(key) || key}
+										</p>
 										<div class="grid gap-2 sm:grid-cols-3">
 											{#each Object.entries(valor) as [subKey, subVal]}
 												<div>
-													<label class="mb-1 block text-[10px] text-[var(--text-dim)]">{subKey}</label>
+													<label class="mb-1 block text-[10px] text-[var(--text-dim)]"
+														>{subKey}</label
+													>
 													{#if typeof subVal === 'number'}
 														<input
 															type="number"
 															value={subVal}
 															oninput={(e) => {
 																const target = e.currentTarget as HTMLInputElement;
-																(editando[item.id][key] as Record<string, unknown>)[subKey] = Number(target.value)
+																(editando[item.id][key] as Record<string, unknown>)[subKey] =
+																	Number(target.value);
 															}}
 															class="param-input"
 														/>
@@ -152,7 +184,8 @@
 															value={String(subVal)}
 															oninput={(e) => {
 																const target = e.currentTarget as HTMLInputElement;
-																(editando[item.id][key] as Record<string, unknown>)[subKey] = target.value
+																(editando[item.id][key] as Record<string, unknown>)[subKey] =
+																	target.value;
 															}}
 															class="param-input"
 														/>
@@ -175,8 +208,8 @@
 											value={valor as number}
 											step={key === 'margen_ganancia' || key === 'margen_led' ? '0.01' : '1'}
 											oninput={(e) => {
-												const target = e.currentTarget as HTMLInputElement
-												editando[item.id][key] = Number(target.value)
+												const target = e.currentTarget as HTMLInputElement;
+												editando[item.id][key] = Number(target.value);
 											}}
 											class="param-input"
 										/>
@@ -186,7 +219,9 @@
 						</div>
 
 						<!-- Botón guardar -->
-						<div class="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-4">
+						<div
+							class="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-4"
+						>
 							<p class="text-[10px] text-[var(--text-dim)]">
 								Los cambios se aplican a todas las calculadoras al guardar
 							</p>
@@ -205,7 +240,9 @@
 	</div>
 
 	{#if data.catalogo.length === 0}
-		<div class="mt-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-8 text-center text-sm text-[var(--text-muted)]">
+		<div
+			class="mt-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-8 text-center text-sm text-[var(--text-muted)]"
+		>
 			No hay productos configurados en el catálogo
 		</div>
 	{/if}

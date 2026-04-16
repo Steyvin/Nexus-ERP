@@ -115,9 +115,7 @@
 	<!-- Cabecera -->
 	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div>
-			<h1 class="text-xl font-semibold text-[var(--text)]">
-				{esDiseñador ? 'Mis Pedidos' : 'Pedidos'}
-			</h1>
+			<h1 class="text-xl font-semibold text-[var(--text)]">Pedidos</h1>
 			<p class="mt-1 text-sm text-[var(--text-muted)]">
 				{data.total} pedido{data.total !== 1 ? 's' : ''}
 				{#if esFabricador}
@@ -253,8 +251,8 @@
 				<!-- Panel expandido: items del pedido -->
 				{#if isOpen}
 					<div class="border-t border-[var(--border)]">
-						<!-- Header del admin: cambiar estado + ver detalle -->
-						{#if esAdmin}
+						<!-- Header del admin/diseñador: cambiar estado + ver detalle -->
+						{#if esAdmin || esDiseñador}
 							<div class="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-5 py-3">
 								<span class="text-xs text-[var(--text-muted)]">Estado del pedido:</span>
 								<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
@@ -280,6 +278,7 @@
 									href="/pedidos/{pedido.id}"
 									class="ml-auto text-xs text-[var(--brand-light)] hover:underline"
 								>Ver detalle completo</a>
+								{#if esAdmin}
 								<button
 									type="button"
 									onclick={() => {
@@ -291,6 +290,7 @@
 								>
 									Eliminar pedido
 								</button>
+								{/if}
 							</div>
 						{/if}
 
@@ -298,7 +298,7 @@
 						<div class="divide-y divide-[var(--border)]">
 							{#each items as item, idx (item.id)}
 								{@const esItemMio = esDiseñador && item.asignado_a === data.userId}
-								<div class="px-5 py-3 {esDiseñador && !esItemMio && !esAdmin ? 'opacity-40' : ''}">
+								<div class="px-5 py-3">
 									<div class="flex flex-wrap items-start gap-3">
 										<!-- Info del item -->
 										<div class="min-w-0 flex-1">
@@ -364,7 +364,7 @@
 											{/if}
 
 											<!-- Diseñador: subir archivo de diseño -->
-											{#if (esDiseñador && esItemMio) || esAdmin}
+											{#if esDiseñador || esAdmin}
 												<button
 													onclick={() => iniciarSubirDiseno(item.id, item.archivo_diseno_url ?? '')}
 													class="btn-secondary rounded-lg px-3 py-1 text-xs"
