@@ -67,12 +67,14 @@ export const actions: Actions = {
 
 		const supabaseAdmin = getAdminClient()
 
-		// Crear usuario directamente con contraseña asignada
+		// Crear usuario con contraseña asignada
+		// Solo pasamos 'nombre' en metadata para que el trigger handle_new_user
+		// pueda crear el perfil sin problemas. El rol lo actualizamos después.
 		const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
 			email,
 			password: clave,
 			email_confirm: true,
-			user_metadata: { nombre, rol }
+			user_metadata: { nombre }
 		})
 
 		if (error) {
@@ -83,11 +85,11 @@ export const actions: Actions = {
 			return fail(400, { error: mensaje })
 		}
 
-		// Guardar clave en texto plano en perfiles para que el admin pueda verla
+		// Actualizar el rol y guardar la clave en texto plano
 		if (newUser?.user) {
 			await supabaseAdmin
 				.from('perfiles')
-				.update({ clave_texto: clave })
+				.update({ rol, clave_texto: clave })
 				.eq('id', newUser.user.id)
 		}
 
