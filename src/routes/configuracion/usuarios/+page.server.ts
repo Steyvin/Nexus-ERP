@@ -109,7 +109,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'No puedes cambiar tu propio rol' })
 		}
 
-		const { error } = await locals.supabase
+		const supabaseAdmin = getAdminClient()
+		const { error } = await supabaseAdmin
 			.from('perfiles')
 			.update({ rol })
 			.eq('id', userId)
