@@ -53,9 +53,29 @@
 		clavesVisibles = nuevoSet
 	}
 
+	// Eliminar usuario
+	let eliminandoUsuario = $state<string | null>(null)
+	let nombreEliminar = $state('')
+
+	// Cambiar contraseña
+	let cambiandoClave = $state<string | null>(null)
+	let nombreCambiarClave = $state('')
+	let nuevaClave = $state('')
+
 	function abrirModal() {
 		invEmail = ''; invNombre = ''; invClave = ''; invRol = 'fabricador'
 		modalInvitar = true
+	}
+
+	function abrirEliminar(u: any) {
+		eliminandoUsuario = u.id
+		nombreEliminar = u.nombre
+	}
+
+	function abrirCambiarClave(u: any) {
+		cambiandoClave = u.id
+		nombreCambiarClave = u.nombre
+		nuevaClave = ''
 	}
 </script>
 
@@ -97,6 +117,7 @@
 							<th class="px-5 py-3 font-medium">Último acceso</th>
 							<th class="px-5 py-3 font-medium">Miembro desde</th>
 							<th class="px-5 py-3 font-medium text-center">Estado</th>
+							<th class="px-5 py-3 font-medium text-center">Acciones</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -218,6 +239,32 @@
 										</form>
 									{/if}
 								</td>
+
+								<!-- Acciones -->
+								<td class="px-5 py-3.5 text-center">
+									{#if !esMismo}
+										<div class="flex items-center justify-center gap-1">
+											<button
+												type="button"
+												onclick={() => abrirCambiarClave(u)}
+												class="rounded-lg p-1.5 text-[var(--text-dim)] hover:text-[var(--brand-light)] hover:bg-[var(--bg-card-2)] transition-colors"
+												title="Cambiar contraseña"
+											>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+											</button>
+											<button
+												type="button"
+												onclick={() => abrirEliminar(u)}
+												class="rounded-lg p-1.5 text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+												title="Eliminar usuario"
+											>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+											</button>
+										</div>
+									{:else}
+										<span class="text-[11px] text-[var(--text-dim)]">—</span>
+									{/if}
+								</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -289,6 +336,17 @@
 										{:else}
 											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
 										{/if}
+									</button>
+								</div>
+							{/if}
+
+							{#if !esMismo}
+								<div class="flex items-center gap-1 ml-auto">
+									<button type="button" onclick={() => abrirCambiarClave(u)} class="rounded-lg p-1.5 text-[var(--text-dim)] hover:text-[var(--brand-light)] hover:bg-[var(--bg-card-2)] transition-colors" title="Cambiar contraseña">
+										<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+									</button>
+									<button type="button" onclick={() => abrirEliminar(u)} class="rounded-lg p-1.5 text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Eliminar usuario">
+										<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
 									</button>
 								</div>
 							{/if}
@@ -425,6 +483,108 @@
 					>
 						{enviando ? 'Creando...' : 'Crear usuario'}
 					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ═══ MODAL: CONFIRMAR ELIMINACIÓN ═══ -->
+{#if eliminandoUsuario}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+		onclick={() => (eliminandoUsuario = null)}
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h3 class="text-base font-semibold text-red-400">Eliminar usuario</h3>
+			<p class="mt-2 text-sm text-[var(--text-muted)]">
+				¿Eliminar a <span class="font-medium text-[var(--text)]">{nombreEliminar}</span>? Se eliminará su cuenta y perfil del sistema. Esta acción no se puede deshacer.
+			</p>
+			<form method="POST" action="?/eliminarUsuario" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Usuario eliminado')
+						eliminandoUsuario = null
+						invalidateAll()
+					} else if (result.type === 'failure') {
+						mostrarToast((result.data as any)?.error ?? 'Error al eliminar', 'error')
+					}
+				}
+			}}>
+				<input type="hidden" name="user_id" value={eliminandoUsuario} />
+				<div class="mt-5 flex justify-end gap-3">
+					<button
+						type="button"
+						onclick={() => (eliminandoUsuario = null)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] transition-colors"
+					>Cancelar</button>
+					<button
+						type="submit"
+						class="rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+					>Eliminar</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ═══ MODAL: CAMBIAR CONTRASEÑA ═══ -->
+{#if cambiandoClave}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+		onclick={() => (cambiandoClave = null)}
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h3 class="text-base font-semibold text-[var(--text)]">Cambiar contraseña</h3>
+			<p class="mt-1 text-xs text-[var(--text-dim)]">
+				Nueva contraseña para <span class="font-medium text-[var(--text-muted)]">{nombreCambiarClave}</span>
+			</p>
+			<form method="POST" action="?/cambiarClave" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Contraseña actualizada')
+						cambiandoClave = null
+						invalidateAll()
+					} else if (result.type === 'failure') {
+						mostrarToast((result.data as any)?.error ?? 'Error al cambiar contraseña', 'error')
+					}
+				}
+			}}>
+				<input type="hidden" name="user_id" value={cambiandoClave} />
+				<div class="mt-4">
+					<label for="nueva-clave" class="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Nueva contraseña</label>
+					<input
+						id="nueva-clave"
+						type="text"
+						name="nueva_clave"
+						bind:value={nuevaClave}
+						placeholder="Mínimo 6 caracteres"
+						required
+						minlength="6"
+						class="input-field w-full font-mono"
+					/>
+				</div>
+				<div class="mt-5 flex justify-end gap-3">
+					<button
+						type="button"
+						onclick={() => (cambiandoClave = null)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] transition-colors"
+					>Cancelar</button>
+					<button
+						type="submit"
+						disabled={nuevaClave.length < 6}
+						class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-50"
+					>Guardar</button>
 				</div>
 			</form>
 		</div>

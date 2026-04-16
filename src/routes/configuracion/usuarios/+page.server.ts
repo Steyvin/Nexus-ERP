@@ -136,5 +136,63 @@ export const actions: Actions = {
 
 		if (error) return fail(500, { error: 'Error al actualizar estado' })
 		return { success: true }
+	},
+
+	// ── Eliminar usuario ──────────────────────────────────────────────────────
+	eliminarUsuario: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
+
+		const form   = await request.formData()
+		const userId = form.get('user_id') as string
+
+		if (userId === usuario.id) {
+			return fail(400, { error: 'No puedes eliminarte a ti mismo' })
+		}
+
+		const supabaseAdmin = getAdminClient()
+
+		// Eliminar perfil de la base de datos
+		await supabaseAdmin
+			.from('perfiles')
+			.delete()
+			.eq('id', userId)
+
+		// Eliminar usuario de auth
+		const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+		if (error) return fail(500, { error: 'Error al eliminar usuario: ' + error.message })
+		return { success: true }
+	},
+
+	// ── Cambiar contraseña de un usuario ───────────────────────────────────────
+	cambiarClave: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
+
+		const form      = await request.formData()
+		const userId    = form.get('user_id') as string
+		const nuevaClave = (form.get('nueva_clave') as string)
+
+		if (!nuevaClave || nuevaClave.length < 6) {
+			return fail(400, { error: 'La clave debe tener al menos 6 caracteres' })
+		}
+
+		const supabaseAdmin = getAdminClient()
+
+		// Actualizar en Supabase Auth
+		const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+			password: nuevaClave
+		})
+
+		if (error) return fail(500, { error: 'Error al cambiar contraseña: ' + error.message })
+
+		// Actualizar clave en texto plano en perfiles
+		await supabaseAdmin
+			.from('perfiles')
+			.update({ clave_texto: nuevaClave })
+			.eq('id', userId)
+
+		return { success: true }
 	}
 }
