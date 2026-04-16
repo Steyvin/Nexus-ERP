@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [perfilesRes, authUsersRes] = await Promise.all([
 		locals.supabase
 			.from('perfiles')
-			.select('id, nombre, rol, activo, ultimo_acceso, created_at')
+			.select('id, nombre, rol, activo, ultimo_acceso, created_at, clave_texto')
 			.order('created_at', { ascending: true }),
 
 		supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
@@ -46,8 +46,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 }
 
 export const actions: Actions = {
-	// ── Invitar nuevo usuario por email ──────────────────────────────────────
-	invitarUsuario: async ({ request, locals }) => {
+	// ── Crear nuevo usuario con correo y clave ──────────────────────────────
+	crearUsuario: async ({ request, locals }) => {
 		const usuario = await locals.getUsuario()
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
@@ -55,18 +55,24 @@ export const actions: Actions = {
 		const email  = (form.get('email')  as string)?.trim().toLowerCase()
 		const nombre = (form.get('nombre') as string)?.trim()
 		const rol    = form.get('rol') as Rol
+		const clave  = (form.get('clave')  as string)
 
-		if (!email || !nombre || !rol) {
+		if (!email || !nombre || !rol || !clave) {
 			return fail(400, { error: 'Todos los campos son obligatorios' })
+		}
+
+		if (clave.length < 6) {
+			return fail(400, { error: 'La clave debe tener al menos 6 caracteres' })
 		}
 
 		const supabaseAdmin = getAdminClient()
 
-		// inviteUserByEmail envía el email de invitación.
-		// Los metadatos (nombre, rol) los usa el trigger on_auth_user_created
-		// para crear automáticamente el perfil con el rol correcto.
-		const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-			data: { nombre, rol }
+		// Crear usuario directamente con contraseña asignada
+		const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
+			email,
+			password: clave,
+			email_confirm: true,
+			user_metadata: { nombre, rol }
 		})
 
 		if (error) {
@@ -77,7 +83,15 @@ export const actions: Actions = {
 			return fail(400, { error: mensaje })
 		}
 
-		return { success: true, mensaje: `Invitación enviada a ${email}` }
+		// Guardar clave en texto plano en perfiles para que el admin pueda verla
+		if (newUser?.user) {
+			await supabaseAdmin
+				.from('perfiles')
+				.update({ clave_texto: clave })
+				.eq('id', newUser.user.id)
+		}
+
+		return { success: true, mensaje: `Usuario ${nombre} creado exitosamente` }
 	},
 
 	// ── Cambiar rol de un usuario ─────────────────────────────────────────────

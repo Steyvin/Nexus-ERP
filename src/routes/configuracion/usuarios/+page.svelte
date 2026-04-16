@@ -39,11 +39,22 @@
 	let modalInvitar = $state(false)
 	let invEmail  = $state('')
 	let invNombre = $state('')
+	let invClave  = $state('')
 	let invRol    = $state<Rol>('fabricador')
 	let enviando  = $state(false)
 
+	// Visibilidad de claves por usuario
+	let clavesVisibles = $state<Set<string>>(new Set())
+
+	function toggleClave(userId: string) {
+		const nuevoSet = new Set(clavesVisibles)
+		if (nuevoSet.has(userId)) nuevoSet.delete(userId)
+		else nuevoSet.add(userId)
+		clavesVisibles = nuevoSet
+	}
+
 	function abrirModal() {
-		invEmail = ''; invNombre = ''; invRol = 'fabricador'
+		invEmail = ''; invNombre = ''; invClave = ''; invRol = 'fabricador'
 		modalInvitar = true
 	}
 </script>
@@ -63,7 +74,7 @@
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
 			</svg>
-			Invitar usuario
+			Crear usuario
 		</button>
 	</div>
 
@@ -82,6 +93,7 @@
 						<tr class="border-b border-[var(--border)] text-left text-[11px] text-[var(--text-muted)]">
 							<th class="px-5 py-3 font-medium">Usuario</th>
 							<th class="px-5 py-3 font-medium">Rol</th>
+							<th class="px-5 py-3 font-medium">Clave</th>
 							<th class="px-5 py-3 font-medium">Último acceso</th>
 							<th class="px-5 py-3 font-medium">Miembro desde</th>
 							<th class="px-5 py-3 font-medium text-center">Estado</th>
@@ -139,6 +151,31 @@
 												{/each}
 											</select>
 										</form>
+									{/if}
+								</td>
+
+								<!-- Clave -->
+								<td class="px-5 py-3.5">
+									{#if u.clave_texto}
+										<div class="flex items-center gap-1.5">
+											<span class="text-xs font-mono text-[var(--text-dim)]">
+												{clavesVisibles.has(u.id) ? u.clave_texto : '••••••••'}
+											</span>
+											<button
+												type="button"
+												onclick={() => toggleClave(u.id)}
+												class="text-[var(--text-dim)] hover:text-[var(--text)] transition-colors"
+												title={clavesVisibles.has(u.id) ? 'Ocultar clave' : 'Mostrar clave'}
+											>
+												{#if clavesVisibles.has(u.id)}
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+												{:else}
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+												{/if}
+											</button>
+										</div>
+									{:else}
+										<span class="text-[11px] text-[var(--text-dim)]">—</span>
 									{/if}
 								</td>
 
@@ -241,6 +278,20 @@
 							<span class="text-[11px] text-[var(--text-dim)]">
 								{u.ultimo_acceso ? `Activo ${fmtRelativa(u.ultimo_acceso)}` : 'Nunca accedió'}
 							</span>
+							{#if u.clave_texto}
+								<div class="flex items-center gap-1">
+									<span class="text-[10px] font-mono text-[var(--text-dim)]">
+										{clavesVisibles.has(u.id) ? u.clave_texto : '••••••'}
+									</span>
+									<button type="button" onclick={() => toggleClave(u.id)} class="text-[var(--text-dim)] hover:text-[var(--text)]">
+										{#if clavesVisibles.has(u.id)}
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+										{:else}
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+										{/if}
+									</button>
+								</div>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -276,8 +327,8 @@
 		>
 			<div class="mb-5 flex items-center justify-between">
 				<div>
-					<h2 class="text-base font-semibold text-[var(--text)]">Invitar usuario</h2>
-					<p class="mt-0.5 text-xs text-[var(--text-dim)]">Se enviará un email con enlace para crear contraseña</p>
+					<h2 class="text-base font-semibold text-[var(--text)]">Crear usuario</h2>
+					<p class="mt-0.5 text-xs text-[var(--text-dim)]">Asigna un correo y clave para acceder al ERP</p>
 				</div>
 				<button
 					onclick={() => (modalInvitar = false)}
@@ -288,17 +339,17 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/invitarUsuario" use:enhance={() => {
+			<form method="POST" action="?/crearUsuario" use:enhance={() => {
 				enviando = true
 				return async ({ result }) => {
 					enviando = false
 					if (result.type === 'success') {
-						const msg = (result.data as any)?.mensaje ?? 'Invitación enviada'
+						const msg = (result.data as any)?.mensaje ?? 'Usuario creado'
 						mostrarToast(msg)
 						modalInvitar = false
 						invalidateAll()
 					} else if (result.type === 'failure') {
-						mostrarToast((result.data as any)?.error ?? 'Error al enviar invitación', 'error')
+						mostrarToast((result.data as any)?.error ?? 'Error al crear usuario', 'error')
 					}
 				}
 			}} class="space-y-4">
@@ -346,6 +397,21 @@
 					</p>
 				</div>
 
+				<div>
+					<label for="inv-clave" class="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Contraseña</label>
+					<input
+						id="inv-clave"
+						type="text"
+						name="clave"
+						bind:value={invClave}
+						placeholder="Mínimo 6 caracteres"
+						required
+						minlength="6"
+						class="input-field w-full font-mono"
+					/>
+					<p class="mt-1 text-[10px] text-[var(--text-dim)]">El usuario usará esta clave para entrar al ERP. Solo el admin puede verla.</p>
+				</div>
+
 				<div class="flex gap-3 pt-1">
 					<button
 						type="button"
@@ -354,10 +420,10 @@
 					>Cancelar</button>
 					<button
 						type="submit"
-						disabled={enviando || !invEmail.trim() || !invNombre.trim()}
+						disabled={enviando || !invEmail.trim() || !invNombre.trim() || invClave.length < 6}
 						class="btn-primary flex-1 rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
 					>
-						{enviando ? 'Enviando...' : 'Enviar invitación'}
+						{enviando ? 'Creando...' : 'Crear usuario'}
 					</button>
 				</div>
 			</form>

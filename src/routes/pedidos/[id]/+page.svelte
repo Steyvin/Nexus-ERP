@@ -498,6 +498,18 @@
 								{cliente.ciudad}
 							</div>
 						{/if}
+
+						{#if cliente.contacto}
+							<a
+								href={`https://wa.me/${cliente.contacto.replace(/\D/g, '')}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-green-600/15 border border-green-500/25 px-4 py-2 text-sm font-medium text-green-400 hover:bg-green-600/25 hover:border-green-500/40 transition-all"
+							>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+								Contactar por WhatsApp
+							</a>
+						{/if}
 					</div>
 				{:else}
 					<p class="text-sm text-[var(--text-dim)]">Sin cliente asignado</p>

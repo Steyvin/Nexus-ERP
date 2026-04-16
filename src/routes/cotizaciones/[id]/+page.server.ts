@@ -68,6 +68,23 @@ export const actions: Actions = {
 		return { success: true }
 	},
 
+	// Actualizar precio total manualmente
+	actualizarTotal: async ({ request, locals }) => {
+		const form = await request.formData()
+		const id = form.get('id') as string
+		const precioTotal = Number(form.get('precio_total'))
+
+		if (!id || isNaN(precioTotal)) return { error: 'Datos inválidos' }
+
+		const { error: err } = await locals.supabase
+			.from('cotizaciones')
+			.update({ precio_total: Math.round(precioTotal) })
+			.eq('id', id)
+
+		if (err) return { error: 'Error al actualizar precio total' }
+		return { success: true }
+	},
+
 	// Cambiar estado
 	cambiarEstado: async ({ request, locals }) => {
 		const form = await request.formData()
@@ -99,7 +116,8 @@ export const actions: Actions = {
 
 		if (!cot) return { error: 'Cotización no encontrada' }
 
-		// Crear pedido
+		// Crear pedido (incluir abono si existe)
+		const abono = Number(form.get('abono') ?? 0)
 		const { data: pedido, error: errPedido } = await supabase
 			.from('pedidos')
 			.insert({
@@ -107,6 +125,7 @@ export const actions: Actions = {
 				cliente_id: cot.cliente_id,
 				creado_por: usuario?.id ?? null,
 				precio_total: cot.precio_total,
+				abono: abono > 0 ? abono : 0,
 				nota: cot.nota,
 				imagen_url: cot.imagen_url
 			})
@@ -114,6 +133,20 @@ export const actions: Actions = {
 			.single()
 
 		if (errPedido || !pedido) return { error: 'Error al crear pedido' }
+
+		// Registrar movimiento financiero del abono si es > 0
+		if (abono > 0) {
+			await supabase
+				.from('movimientos_financieros')
+				.insert({
+					pedido_id: pedido.id,
+					tipo: 'abono',
+					concepto: 'Abono inicial al crear pedido',
+					monto: abono,
+					fecha: new Date().toISOString().slice(0, 10),
+					registrado_por: usuario?.id ?? null
+				})
+		}
 
 		// Copiar items al pedido
 		const pedidoItems = (cot.cotizacion_items ?? []).map((item: any) => ({

@@ -20,6 +20,13 @@
 	let confirmandoEliminar = $state(false)
 	let confirmandoConvertir = $state(false)
 
+	// Editar precio total manualmente
+	let editandoTotal = $state(false)
+	let totalEditado = $state(0)
+
+	// Abono al convertir en pedido
+	let montoAbono = $state(0)
+
 	const costoFab = $derived(items.reduce((s: number, i: any) => s + Number(i.precio_fabricacion ?? 0), 0))
 	const subtotal = $derived(items.reduce((s: number, i: any) => s + Number(i.precio_cliente ?? 0), 0))
 	const ganancia = $derived(cot.precio_total - costoFab)
@@ -44,6 +51,15 @@
 
 	function cancelarEdicion() {
 		editandoItem = null
+	}
+
+	function iniciarEdicionTotal() {
+		totalEditado = cot.precio_total
+		editandoTotal = true
+	}
+
+	function cancelarEdicionTotal() {
+		editandoTotal = false
 	}
 </script>
 
@@ -264,9 +280,54 @@
 					{/if}
 				</dl>
 
-				<div class="mt-4 flex items-center justify-between rounded-lg bg-[var(--brand-dark)] px-4 py-3">
-					<span class="text-sm font-medium text-[var(--brand-light)]">Total</span>
-					<span class="text-xl font-bold text-[var(--text)]">{fmt(cot.precio_total)}</span>
+				<div class="mt-4 rounded-lg bg-[var(--brand-dark)] px-4 py-3">
+					{#if editandoTotal && puedeGestionar && esEditable}
+						<form method="POST" action="?/actualizarTotal" use:enhance={() => {
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									mostrarToast('Precio total actualizado')
+									editandoTotal = false
+									invalidateAll()
+								}
+							}
+						}}>
+							<input type="hidden" name="id" value={cot.id} />
+							<div class="flex items-center justify-between">
+								<span class="text-sm font-medium text-[var(--brand-light)]">Total</span>
+								<div class="flex items-center gap-1.5">
+									<span class="text-sm text-[var(--text-dim)]">$</span>
+									<input
+										type="number"
+										name="precio_total"
+										bind:value={totalEditado}
+										class="w-32 rounded-lg border border-[var(--brand)] bg-[var(--bg-card-2)] px-2 py-1.5 text-right text-lg font-bold text-[var(--text)] outline-none"
+									/>
+									<button type="submit" class="text-[var(--success)] hover:text-green-300" title="Guardar">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+									</button>
+									<button type="button" onclick={cancelarEdicionTotal} class="text-[var(--text-dim)] hover:text-[var(--text)]" title="Cancelar">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+									</button>
+								</div>
+							</div>
+						</form>
+					{:else}
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-medium text-[var(--brand-light)]">Total</span>
+							<div class="flex items-center gap-2">
+								<span class="text-xl font-bold text-[var(--text)]">{fmt(cot.precio_total)}</span>
+								{#if puedeGestionar && esEditable}
+									<button
+										onclick={iniciarEdicionTotal}
+										class="text-[var(--text-dim)] hover:text-[var(--brand-light)] transition-colors"
+										title="Editar precio total"
+									>
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+									</button>
+								{/if}
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				{#if puedeVerCostos && subtotal > 0}
@@ -305,20 +366,43 @@
 
 <!-- Modal: Confirmar conversión a pedido -->
 {#if confirmandoConvertir}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (confirmandoConvertir = false)}>
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => { confirmandoConvertir = false; montoAbono = 0 }}>
 		<div class="mx-4 w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
 			<h3 class="text-lg font-semibold text-[var(--text)]">Convertir en pedido</h3>
 			<p class="mt-2 text-sm text-[var(--text-muted)]">
 				Se creará un pedido con los {items.length} producto{items.length !== 1 ? 's' : ''} de esta cotización
 				por un total de {fmt(cot.precio_total)}. La cotización se marcará como "Aprobada".
 			</p>
+
+			<div class="mt-4">
+				<label for="abono-input" class="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Monto de abono recibido</label>
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-[var(--text-dim)]">$</span>
+					<input
+						id="abono-input"
+						type="number"
+						min="0"
+						max={cot.precio_total}
+						bind:value={montoAbono}
+						placeholder="0"
+						class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--brand)] transition-colors"
+					/>
+				</div>
+				{#if montoAbono > 0}
+					<p class="mt-1.5 text-[11px] text-[var(--text-dim)]">
+						Saldo pendiente: {fmt(cot.precio_total - montoAbono)}
+					</p>
+				{/if}
+			</div>
+
 			<div class="mt-5 flex justify-end gap-3">
 				<button
-					onclick={() => (confirmandoConvertir = false)}
+					onclick={() => { confirmandoConvertir = false; montoAbono = 0 }}
 					class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
 				>Cancelar</button>
 				<form method="POST" action="?/convertirPedido" use:enhance>
 					<input type="hidden" name="id" value={cot.id} />
+					<input type="hidden" name="abono" value={montoAbono} />
 					<button class="btn-primary rounded-lg px-5 py-2 text-sm font-medium">
 						Convertir
 					</button>
