@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		.from('pedidos')
 		.select(
 			`id, estado, precio_total, abono, saldo, fecha_entrega, nota, imagen_url, created_at,
-			 clientes(id, nombre, empresa),
+			 clientes(id, nombre, empresa, contacto),
 			 perfiles!pedidos_creado_por_fkey(nombre),
 			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, notas_produccion, orden)`,
 			{ count: 'exact' }
