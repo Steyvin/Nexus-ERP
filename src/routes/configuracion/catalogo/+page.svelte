@@ -214,7 +214,7 @@
 <style>
 	.btn-primary {
 		background: var(--brand);
-		color: #fff;
+		color: #080808;
 		transition: background 0.15s;
 	}
 	.btn-primary:hover {

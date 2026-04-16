@@ -40,7 +40,7 @@
 	<div class="w-full max-w-[380px]">
 		<!-- Logo + branding -->
 		<div class="mb-10 flex flex-col items-center gap-4">
-			<img src={logoNexus} alt="Nexus LED" class="logo-glow h-12" />
+			<img src={logoNexus} alt="Nexus LED" class="h-12" />
 			<p class="text-sm text-[var(--text-muted)]">Inicia sesión en el ERP</p>
 		</div>
 
@@ -106,7 +106,7 @@
 				<button
 					type="submit"
 					disabled={cargando}
-					class="login-btn flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white transition-all disabled:opacity-50"
+					class="login-btn flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-[#080808] transition-all disabled:opacity-50"
 				>
 					{#if cargando}
 						<svg class="spinner h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -151,9 +151,7 @@
 		);
 	}
 
-	.logo-glow {
-		box-shadow: 0 0 40px color-mix(in srgb, var(--brand) 25%, transparent);
-	}
+
 
 	.login-input:focus {
 		border-color: var(--brand);

@@ -2,9 +2,9 @@
 
 /* ── Variables globales Nexus LED ─────────────────── */
 :root {
-  --brand:        #2d7a2d;
-  --brand-light:  #4da74d;
-  --brand-dark:   #1a4a1a;
+  --brand:        #e0e0e0;
+  --brand-light:  #ffffff;
+  --brand-dark:   #1a1a1a;
   --bg:           #080808;
   --bg-card:      #111111;
   --bg-card-2:    #161616;
