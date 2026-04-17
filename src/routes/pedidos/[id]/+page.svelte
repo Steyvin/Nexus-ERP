@@ -107,12 +107,14 @@
 			</div>
 		</div>
 
-		{#if esAdmin}
+		{#if esAdmin || esDiseñador}
 			<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
 				return async ({ result }) => {
 					if (result.type === 'success') {
 						mostrarToast('Estado actualizado')
 						invalidateAll()
+					} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+						mostrarToast(result.data.error, 'error')
 					}
 				}
 			}}>
@@ -201,7 +203,7 @@
 							{#each items as item, idx (item.id)}
 								{@const asignado = (item as any).perfiles}
 								{@const esItemMio = esDiseñador && item.asignado_a === data.userId}
-								<div class="px-5 py-4 {esDiseñador && !esItemMio ? 'opacity-40' : ''}">
+								<div class="px-5 py-4">
 									<div class="flex flex-wrap items-start gap-3">
 										<div class="min-w-0 flex-1">
 											<!-- Badges -->
@@ -284,7 +286,7 @@
 											{/if}
 
 											<!-- Diseñador / Admin: subir diseño -->
-											{#if (esDiseñador && esItemMio) || esAdmin}
+											{#if esDiseñador || esAdmin}
 												<button
 													onclick={() => { subiendoDiseno = item.id; urlDiseno = item.archivo_diseno_url ?? ''; descripcionDiseno = item.descripcion }}
 													class="btn-secondary rounded-lg px-3 py-1 text-[10px] flex items-center gap-1"
@@ -295,8 +297,8 @@
 												</button>
 											{/if}
 
-											<!-- Marcar diseño completado (diseñador asignado o admin) -->
-											{#if (esDiseñador && esItemMio) || esAdmin}
+											<!-- Marcar diseño completado (diseñador o admin) -->
+											{#if esDiseñador || esAdmin}
 												<form method="POST" action="?/marcarDiseno" use:enhance={() => {
 													return async ({ result }) => {
 														if (result.type === 'success') {

@@ -250,7 +250,7 @@
 									type="number"
 									bind:value={formPrecioFab}
 									min="0"
-									class="input-field w-full pl-7"
+									class="input-field w-full !pl-8"
 								/>
 							</div>
 						</div>
@@ -265,7 +265,7 @@
 									type="number"
 									bind:value={formPrecioCliente}
 									min="0"
-									class="input-field w-full pl-7"
+									class="input-field w-full !pl-8"
 								/>
 							</div>
 						</div>

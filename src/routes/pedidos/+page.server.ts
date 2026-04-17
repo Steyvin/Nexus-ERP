@@ -35,7 +35,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const desde = (pagina - 1) * porPagina
 	query = query.range(desde, desde + porPagina - 1)
 
-	const { data: pedidos, count } = await query
+	const { data: pedidos, count, error: pedidosError } = await query
+
+	if (pedidosError) {
+		console.error('[pedidos.load] Error al consultar pedidos:', pedidosError)
+	}
 
 	const filtrados = busqueda
 		? (pedidos ?? []).filter((p: any) => p.clientes !== null)
@@ -61,7 +65,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		busqueda,
 		rol,
 		userId,
-		perfiles
+		perfiles,
+		errorCarga: pedidosError?.message ?? null
 	}
 }
 
@@ -102,7 +107,7 @@ export const actions: Actions = {
 			.update({ estado: datos.estado })
 			.eq('id', datos.pedido_id)
 
-		if (error) return fail(500, { error: 'Error al cambiar estado del pedido' })
+		if (error) return fail(500, { error: 'Error BD: ' + error.message })
 
 		await registrarAudit(locals.supabase, {
 			accion: 'cambiar_estado_pedido',

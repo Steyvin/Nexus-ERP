@@ -98,11 +98,11 @@ export const actions: Actions = {
 		return { success: true }
 	},
 
-	// Cambiar estado general del pedido (solo admin)
+	// Cambiar estado general del pedido (admin o diseñador)
 	cambiarEstadoPedido: async ({ request, locals }) => {
 		const usuario = await locals.getUsuario()
-		if (!usuario || usuario.rol !== 'admin') {
-			return fail(403, { error: 'Solo el administrador puede cambiar el estado del pedido' })
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
+			return fail(403, { error: 'Sin permisos para cambiar el estado del pedido' })
 		}
 
 		const form = await request.formData()
@@ -114,7 +114,7 @@ export const actions: Actions = {
 			.update({ estado: datos.estado })
 			.eq('id', datos.pedido_id)
 
-		if (error) return fail(500, { error: 'Error al cambiar estado del pedido' })
+		if (error) return fail(500, { error: 'Error BD: ' + error.message })
 
 		await registrarCambio(
 			locals.supabase,

@@ -148,7 +148,7 @@
 						bind:value={busquedaLocal}
 						placeholder="Buscar por nombre de cliente..."
 						onkeydown={(e) => { if (e.key === 'Enter') buscar() }}
-						class="input-field w-full pl-9 pr-3"
+						class="input-field w-full !pl-9 pr-3"
 					/>
 				</div>
 				<button onclick={buscar} class="btn-secondary rounded-lg px-4 py-2 text-sm">Buscar</button>
@@ -170,7 +170,12 @@
 
 	<!-- Lista de pedidos -->
 	<div class="mt-4 space-y-3">
-		{#if data.pedidos.length === 0}
+		{#if data.errorCarga}
+			<div class="rounded-xl border border-red-500/30 bg-red-500/5 px-5 py-4 text-sm text-red-400">
+				<p class="font-medium">No se pudieron cargar los pedidos</p>
+				<p class="mt-1 text-xs opacity-80">{data.errorCarga}</p>
+			</div>
+		{:else if data.pedidos.length === 0}
 			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-16 text-center text-sm text-[var(--text-dim)]">
 				No hay pedidos{data.filtroEstado ? ` con estado "${data.filtroEstado}"` : ''}{data.busqueda ? ` para "${data.busqueda}"` : ''}
 			</div>
@@ -273,6 +278,8 @@
 											if (result.type === 'success') {
 												mostrarToast('Estado actualizado')
 												invalidateAll()
+											} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+												mostrarToast(result.data.error, 'error')
 											}
 										}
 									}}>
@@ -381,6 +388,8 @@
 														if (result.type === 'success') {
 															mostrarToast('Estado del item actualizado')
 															invalidateAll()
+														} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+															mostrarToast(result.data.error, 'error')
 														}
 													}
 												}}>

@@ -106,7 +106,7 @@
 					bind:value={busquedaLocal}
 					placeholder="Buscar por nombre de cliente..."
 					onkeydown={(e) => { if (e.key === 'Enter') buscar() }}
-					class="input-field w-full pl-9 pr-3"
+					class="input-field w-full !pl-9 pr-3"
 				/>
 			</div>
 			<button onclick={buscar} class="btn-secondary rounded-lg px-4 py-2 text-sm">
