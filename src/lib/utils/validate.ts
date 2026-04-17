@@ -71,6 +71,13 @@ export const eliminarPedidoSchema = z.object({
 	pedido_id: uuid
 })
 
+export const marcarDisenoSchema = z.object({
+	item_id: uuid,
+	pedido_id: uuid,
+	descripcion: textoOpcional,
+	completado: z.enum(['true', 'false']).transform((v) => v === 'true')
+})
+
 export const agregarNotaSchema = z.object({
 	pedido_id: uuid,
 	contenido: textoRequerido

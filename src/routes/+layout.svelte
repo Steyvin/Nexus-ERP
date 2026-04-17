@@ -15,7 +15,9 @@
 
 	let { data, children }: { data: LayoutData; children: any } = $props()
 
-	// Sincronizar stores con los datos del servidor
+	// Mantener los stores sincronizados si `data` cambia (invalidate).
+	// Nota: el Sidebar lee desde $page.data.usuario para estar disponible en SSR,
+	// estos stores son sólo para componentes que no reciben `data` por props.
 	$effect(() => {
 		session.set(data.session)
 		usuario.set(data.usuario)
@@ -23,18 +25,16 @@
 	})
 
 	onMount(() => {
-		// Escuchar cambios de auth en el browser (login, logout, refresh de token)
+		// Solo recargar la ruta en login/logout reales — ignorar TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION
 		const {
 			data: { subscription }
-		} = supabase.auth.onAuthStateChange(async (event, newSession) => {
-			if (newSession?.expires_at !== data.session?.expires_at) {
-				await goto($page.url.pathname, { invalidateAll: true })
-			}
-
+		} = supabase.auth.onAuthStateChange(async (event) => {
 			if (event === 'SIGNED_OUT') {
 				session.set(null)
 				usuario.set(null)
 				await goto('/login')
+			} else if (event === 'SIGNED_IN') {
+				await goto($page.url.pathname, { invalidateAll: true })
 			}
 		})
 

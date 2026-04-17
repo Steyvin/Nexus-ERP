@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/stores'
-	import { usuario, esAdmin, esFabricador, esDiseñador, esFinanzas } from '$lib/stores/auth'
 	import { sidebarAbierta } from '$lib/stores/ui'
 	import logoNexus from '$lib/assets/NEXUS.png'
 
@@ -16,7 +15,11 @@
 		icon: string
 	}
 
-	// Navegación según rol
+	// Navegación según rol — leer directamente de $page.data para tener el usuario
+	// disponible desde el SSR inicial (sin esperar hidratación de stores).
+	const usuarioPage = $derived($page.data.usuario)
+	const rol = $derived(usuarioPage?.rol ?? null)
+
 	const navAdmin: NavItem[] = [
 		{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 		{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
@@ -32,20 +35,19 @@
 	]
 
 	let navItems = $derived.by(() => {
-		if ($esAdmin) return navAdmin
-		if ($esFabricador)
+		if (rol === 'admin') return navAdmin
+		if (rol === 'fabricador')
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 				{ href: '/pedidos', label: 'Pedidos', icon: 'package' }
 			]
-		if ($esDiseñador)
+		if (rol === 'diseñador')
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
-				{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
 				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' }
 			]
-		if ($esFinanzas)
+		if (rol === 'finanzas')
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
@@ -57,7 +59,7 @@
 		return [{ href: '/dashboard', label: 'Dashboard', icon: 'grid' }]
 	})
 
-	let showConfig = $derived($esAdmin)
+	let showConfig = $derived(rol === 'admin')
 
 	function isActive(href: string): boolean {
 		if (href === '/dashboard') return ($page.url.pathname as string) === '/dashboard'
@@ -295,16 +297,16 @@
 
 	<!-- Usuario en la parte inferior -->
 	<div class="border-t border-[var(--border)] px-4 py-3">
-		{#if $usuario}
+		{#if usuarioPage}
 			<div class="flex items-center gap-3">
 				<div
 					class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--border-light)] text-xs font-medium text-[var(--text-muted)]"
 				>
-					{$usuario.nombre?.charAt(0)?.toUpperCase() ?? '?'}
+					{usuarioPage.nombre?.charAt(0)?.toUpperCase() ?? '?'}
 				</div>
 				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-medium text-[var(--text)]">{$usuario.nombre}</p>
-					<p class="text-[11px] text-[var(--text-dim)]">{$usuario.rol}</p>
+					<p class="truncate text-sm font-medium text-[var(--text)]">{usuarioPage.nombre}</p>
+					<p class="text-[11px] text-[var(--text-dim)]">{usuarioPage.rol}</p>
 				</div>
 			</div>
 		{/if}

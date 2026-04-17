@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema, marcarDisenoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			`id, estado, precio_total, abono, saldo, fecha_entrega, nota, imagen_url, created_at,
 			 clientes(id, nombre, empresa, contacto),
 			 perfiles!pedidos_creado_por_fkey(nombre),
-			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, notas_produccion, orden)`,
+			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, diseno_completado, notas_produccion, orden)`,
 			{ count: 'exact' }
 		)
 		.order(ordenCampo, { ascending: ordenAsc, nullsFirst: false })
@@ -153,6 +153,26 @@ export const actions: Actions = {
 			.eq('id', datos.item_id)
 
 		if (error) return fail(500, { error: 'Error al asignar' })
+		return { success: true }
+	},
+
+	// Marcar diseño como completado / pendiente (admin o diseñador asignado)
+	marcarDiseno: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
+			return fail(403, { error: 'Sin permisos para marcar diseños' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(marcarDisenoSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase
+			.from('pedido_items')
+			.update({ diseno_completado: datos.completado })
+			.eq('id', datos.item_id)
+
+		if (error) return fail(500, { error: 'Error al actualizar diseño' })
 		return { success: true }
 	},
 

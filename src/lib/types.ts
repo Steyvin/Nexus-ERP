@@ -134,6 +134,7 @@ export interface PedidoItem {
   estado_produccion:    EstadoItem
   asignado_a:           string | null
   archivo_diseno_url:   string | null
+  diseno_completado:    boolean
   notas_produccion:     string | null
   orden:                number
   updated_at:           string

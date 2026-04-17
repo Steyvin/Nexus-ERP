@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, marcarDisenoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -211,6 +211,36 @@ export const actions: Actions = {
 			})
 
 		if (error) return fail(500, { error: 'Error al agregar nota' })
+		return { success: true }
+	},
+
+	// Marcar diseño como completado / pendiente (admin o diseñador asignado)
+	marcarDiseno: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
+			return fail(403, { error: 'Sin permisos para marcar diseños' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(marcarDisenoSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase
+			.from('pedido_items')
+			.update({ diseno_completado: datos.completado })
+			.eq('id', datos.item_id)
+
+		if (error) return fail(500, { error: 'Error al actualizar diseño' })
+
+		await registrarCambio(
+			locals.supabase,
+			datos.pedido_id,
+			usuario.id,
+			datos.completado
+				? `[Diseño] "${datos.descripcion}" marcado como completado`
+				: `[Diseño] "${datos.descripcion}" marcado como pendiente`
+		)
+
 		return { success: true }
 	},
 

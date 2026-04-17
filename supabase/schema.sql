@@ -201,6 +201,7 @@ create table public.pedido_items (
   estado_produccion    estado_item   not null default 'pendiente',
   asignado_a           uuid          references public.perfiles(id) on delete set null,
   archivo_diseno_url   text,         -- URL del archivo subido por diseñador
+  diseno_completado    boolean       not null default false, -- Diseñador marca cuando termina el diseño
   notas_produccion     text,
   orden                smallint      not null default 0,
   updated_at           timestamptz   not null default now(),

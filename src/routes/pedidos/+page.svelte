@@ -266,26 +266,36 @@
 						<!-- Header del admin/diseñador: cambiar estado + ver detalle -->
 						{#if esAdmin || esDiseñador || esFabricador}
 							<div class="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-5 py-3">
-								<span class="text-xs text-[var(--text-muted)]">Estado del pedido:</span>
-								<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
-									return async ({ result }) => {
-										if (result.type === 'success') {
-											mostrarToast('Estado actualizado')
-											invalidateAll()
+								{#if esAdmin || esFabricador}
+									<span class="text-xs text-[var(--text-muted)]">Estado del pedido:</span>
+									<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
+										return async ({ result }) => {
+											if (result.type === 'success') {
+												mostrarToast('Estado actualizado')
+												invalidateAll()
+											}
 										}
-									}
-								}}>
-									<input type="hidden" name="pedido_id" value={pedido.id} />
-									<select
-										name="estado"
-										onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
-										class="input-field rounded-lg py-1 text-xs"
-									>
-										{#each ESTADOS_PEDIDO as est}
-											<option value={est} selected={est === pedido.estado}>{est}</option>
-										{/each}
-									</select>
-								</form>
+									}}>
+										<input type="hidden" name="pedido_id" value={pedido.id} />
+										<select
+											name="estado"
+											onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
+											class="input-field rounded-lg py-1 text-xs"
+										>
+											{#each ESTADOS_PEDIDO as est}
+												<option value={est} selected={est === pedido.estado}>{est}</option>
+											{/each}
+										</select>
+									</form>
+								{/if}
+
+								{#if esDiseñador}
+									{@const disHechos = items.filter((i: any) => i.diseno_completado).length}
+									<span class="text-xs text-[var(--text-muted)]">
+										Diseños: <span class="font-medium text-[var(--text)]">{disHechos}/{items.length}</span>
+									</span>
+								{/if}
+
 								<a
 									href="/pedidos/{pedido.id}"
 									class="ml-auto text-xs text-[var(--brand-light)] hover:underline"
@@ -322,6 +332,12 @@
 												<span class="rounded-full border px-2 py-0.5 text-[10px] font-medium {itemEstadoColor[item.estado_produccion] ?? ''}">
 													{ESTADO_ITEM_LABEL[item.estado_produccion as EstadoItem] ?? item.estado_produccion}
 												</span>
+												{#if item.diseno_completado}
+													<span class="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/15 px-2 py-0.5 text-[10px] font-medium text-purple-400">
+														<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+														Diseñado
+													</span>
+												{/if}
 											</div>
 											<p class="mt-1 text-sm text-[var(--text)]">{item.descripcion}</p>
 
@@ -390,6 +406,35 @@
 												>
 													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 												</button>
+											{/if}
+
+											<!-- Marcar diseño completado (diseñador asignado o admin) -->
+											{#if (esDiseñador && esItemMio) || esAdmin}
+												<form method="POST" action="?/marcarDiseno" use:enhance={() => {
+													return async ({ result }) => {
+														if (result.type === 'success') {
+															mostrarToast(item.diseno_completado ? 'Diseño marcado como pendiente' : 'Diseño marcado como completado')
+															invalidateAll()
+														}
+													}
+												}}>
+													<input type="hidden" name="item_id" value={item.id} />
+													<input type="hidden" name="pedido_id" value={pedido.id} />
+													<input type="hidden" name="descripcion" value={item.descripcion} />
+													<input type="hidden" name="completado" value={String(!item.diseno_completado)} />
+													<button
+														type="submit"
+														class="check-diseno flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] transition-colors {item.diseno_completado ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--border-light)] hover:text-[var(--text)]'}"
+														title={item.diseno_completado ? 'Desmarcar diseño' : 'Marcar diseño completado'}
+													>
+														<span class="inline-flex h-3.5 w-3.5 items-center justify-center rounded border {item.diseno_completado ? 'border-purple-500 bg-purple-500 text-white' : 'border-[var(--border-light)]'}">
+															{#if item.diseno_completado}
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+															{/if}
+														</span>
+														Diseño {item.diseno_completado ? 'hecho' : 'pendiente'}
+													</button>
+												</form>
 											{/if}
 
 											<!-- Admin: asignar a usuario -->
