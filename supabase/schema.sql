@@ -56,7 +56,8 @@ create type tipo_producto as enum (
   'neon',             -- Neon Flex (precios fijos)
   'vinilo',           -- Vinilo adhesivo (precio por m²)
   'acrilio',          -- Acrílico sin faja
-  'acrilio_circular'  -- Acrílico circular (diámetros fijos)
+  'acrilio_circular', -- Acrílico circular (diámetros fijos)
+  'unico'             -- Producto único / personalizado (precio manual)
 );
 
 -- Tipos de movimiento financiero
