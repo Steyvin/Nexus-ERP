@@ -65,7 +65,7 @@
 		if (!formDescripcion.trim()) return mostrarToast('La descripcion es obligatoria', 'error')
 		if (formPrecioCliente <= 0) return mostrarToast('El precio cliente debe ser mayor a 0', 'error')
 
-		const costoFinal = formPrecioFab > 0 ? formPrecioFab : Math.round(formPrecioCliente * 0.4)
+		const costoFinal = formPrecioFab > 0 ? formPrecioFab : Math.round(formPrecioCliente * 0.6)
 
 		carrito = [...carrito, {
 			id: crypto.randomUUID(),
@@ -241,7 +241,7 @@
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<label for="fab" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">
-								Costo fabricacion <span class="font-normal text-[var(--text-dim)]">(vacio = 40%)</span>
+								Costo fabricacion <span class="font-normal text-[var(--text-dim)]">(vacio = 60% del precio)</span>
 							</label>
 							<div class="relative">
 								<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
