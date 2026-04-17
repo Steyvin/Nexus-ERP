@@ -82,12 +82,16 @@ export const actions: Actions = {
 		const datos = parseForm(cambiarEstadoItemSchema, form)
 		if (esError(datos)) return datos
 
-		const { error } = await locals.supabase
+		const { data: actualizados, error } = await locals.supabase
 			.from('pedido_items')
 			.update({ estado_produccion: datos.estado })
 			.eq('id', datos.item_id)
+			.select('id')
 
 		if (error) return fail(500, { error: 'Error al actualizar estado' })
+		if (!actualizados || actualizados.length === 0) {
+			return fail(403, { error: 'No se pudo actualizar el item (permisos de base de datos)' })
+		}
 		return { success: true }
 	},
 
@@ -102,12 +106,16 @@ export const actions: Actions = {
 		const datos = parseForm(cambiarEstadoPedidoSchema, form)
 		if (esError(datos)) return datos
 
-		const { error } = await locals.supabase
+		const { data: actualizados, error } = await locals.supabase
 			.from('pedidos')
 			.update({ estado: datos.estado })
 			.eq('id', datos.pedido_id)
+			.select('id')
 
 		if (error) return fail(500, { error: 'Error BD: ' + error.message })
+		if (!actualizados || actualizados.length === 0) {
+			return fail(403, { error: 'No se pudo actualizar el pedido (permisos de base de datos)' })
+		}
 
 		await registrarAudit(locals.supabase, {
 			accion: 'cambiar_estado_pedido',

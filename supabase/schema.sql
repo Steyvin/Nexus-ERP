@@ -543,6 +543,13 @@ create policy "pedidos: fabricador ve"
   on public.pedidos for select
   using (public.es_rol('fabricador'));
 
+-- Fabricadores pueden actualizar el estado del pedido (ej: Terminado, Entregado).
+-- La restricción a solo el campo `estado` se aplica en el server action.
+create policy "pedidos: fabricador actualiza estado"
+  on public.pedidos for update
+  using (public.es_rol('fabricador'))
+  with check (public.es_rol('fabricador'));
+
 -- Diseñadores ven pedidos que tienen items asignados a ellos
 create policy "pedidos: diseñador ve asignados"
   on public.pedidos for select

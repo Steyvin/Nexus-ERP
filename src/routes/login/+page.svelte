@@ -39,7 +39,7 @@
 				return async ({ result }) => {
 					cargando = false
 					if (result.type === 'success') {
-						await goto(destino)
+						await goto(destino, { invalidateAll: true })
 					} else if (result.type === 'failure') {
 						error = (result.data as any)?.error ?? 'Error al iniciar sesion'
 					}
