@@ -105,6 +105,9 @@
 	let nombreClienteEliminar = $state('')
 
 	let totalPaginas = $derived(Math.ceil(data.total / data.porPagina))
+
+	// Lightbox para vista previa de diseño
+	let lightboxUrl = $state<string | null>(null)
 </script>
 
 <svelte:head>
@@ -123,6 +126,15 @@
 				{/if}
 			</p>
 		</div>
+		{#if esAdmin}
+			<a
+				href="/pedidos/nuevo"
+				class="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[#080808] transition-colors hover:bg-[var(--brand-light)]"
+			>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				Nuevo pedido
+			</a>
+		{/if}
 	</div>
 
 	<!-- Búsqueda y filtros -->
@@ -252,7 +264,7 @@
 				{#if isOpen}
 					<div class="border-t border-[var(--border)]">
 						<!-- Header del admin/diseñador: cambiar estado + ver detalle -->
-						{#if esAdmin || esDiseñador}
+						{#if esAdmin || esDiseñador || esFabricador}
 							<div class="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-5 py-3">
 								<span class="text-xs text-[var(--text-muted)]">Estado del pedido:</span>
 								<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
@@ -324,17 +336,23 @@
 												</div>
 											{/if}
 
-											<!-- Archivo de diseño -->
+											<!-- Vista previa del diseño -->
 											{#if item.archivo_diseno_url}
-												<a
-													href={item.archivo_diseno_url}
-													target="_blank"
-													rel="noopener"
-													class="mt-1 inline-flex items-center gap-1 text-[10px] text-[var(--brand-light)] hover:underline"
+												<button
+													type="button"
+													onclick={() => (lightboxUrl = item.archivo_diseno_url)}
+													class="mt-2 group relative rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--brand)]/50 transition-all cursor-pointer"
+													title="Ver diseño"
 												>
-													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-													Archivo de diseño
-												</a>
+													<img
+														src={item.archivo_diseno_url}
+														alt="Diseño de {item.tipo_label}"
+														class="h-16 w-16 object-cover bg-[#080808]"
+													/>
+													<div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+														<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white opacity-0 group-hover:opacity-100 transition-opacity"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+													</div>
+												</button>
 											{/if}
 										</div>
 
@@ -544,6 +562,32 @@
 				</div>
 			</form>
 		</div>
+	</div>
+{/if}
+
+<!-- Lightbox: vista previa del diseño -->
+{#if lightboxUrl}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+		onclick={() => (lightboxUrl = null)}
+		onkeydown={(e) => { if (e.key === 'Escape') lightboxUrl = null }}
+		role="dialog"
+		tabindex="-1"
+	>
+		<button
+			type="button"
+			onclick={() => (lightboxUrl = null)}
+			class="absolute top-4 right-4 flex items-center justify-center w-9 h-9 rounded-full bg-black/60 border border-white/15 text-white/80 hover:text-white hover:border-white/40 transition-colors z-10"
+			title="Cerrar"
+		>
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+		</button>
+		<img
+			src={lightboxUrl}
+			alt="Vista previa del diseño"
+			class="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+			onclick={(e) => e.stopPropagation()}
+		/>
 	</div>
 {/if}
 

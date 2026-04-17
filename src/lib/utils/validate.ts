@@ -140,6 +140,7 @@ export const eliminarCotSchema = z.object({
 
 export const crearUsuarioSchema = z.object({
 	nombre: textoRequerido,
+	username: z.string().max(50).optional().default(''),
 	email: z.string().email('Email inválido'),
 	clave: z.string().min(6, 'La contraseña debe tener mínimo 6 caracteres'),
 	rol: z.enum(['admin', 'fabricador', 'diseñador', 'finanzas'], {

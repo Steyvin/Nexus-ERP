@@ -37,10 +37,11 @@
 
 	// Estado UI
 	let modalInvitar = $state(false)
-	let invEmail  = $state('')
-	let invNombre = $state('')
-	let invClave  = $state('')
-	let invRol    = $state<Rol>('fabricador')
+	let invEmail    = $state('')
+	let invNombre   = $state('')
+	let invUsername  = $state('')
+	let invClave    = $state('')
+	let invRol      = $state<Rol>('fabricador')
 	let enviando  = $state(false)
 
 	// Eliminar usuario
@@ -53,7 +54,7 @@
 	let nuevaClave = $state('')
 
 	function abrirModal() {
-		invEmail = ''; invNombre = ''; invClave = ''; invRol = 'fabricador'
+		invEmail = ''; invNombre = ''; invUsername = ''; invClave = ''; invRol = 'fabricador'
 		modalInvitar = true
 	}
 
@@ -127,7 +128,7 @@
 													<span class="rounded bg-[var(--bg-card-2)] px-1.5 py-0.5 text-[9px] text-[var(--text-dim)]">Tú</span>
 												{/if}
 											</div>
-											<p class="truncate text-[11px] text-[var(--text-dim)]">{u.email}</p>
+											<p class="truncate text-[11px] text-[var(--text-dim)]">{u.email}{u.username ? ` · @${u.username}` : ''}</p>
 										</div>
 									</div>
 								</td>
@@ -250,7 +251,7 @@
 										<p class="text-sm font-medium text-[var(--text)]">{u.nombre}</p>
 										{#if esMismo}<span class="text-[9px] text-[var(--text-dim)]">(Tú)</span>{/if}
 									</div>
-									<p class="text-xs text-[var(--text-dim)]">{u.email}</p>
+									<p class="text-xs text-[var(--text-dim)]">{u.email}{u.username ? ` · @${u.username}` : ''}</p>
 								</div>
 							</div>
 
@@ -373,6 +374,19 @@
 						required
 						class="input-field w-full"
 					/>
+				</div>
+
+				<div>
+					<label for="inv-username" class="mb-1.5 block text-xs font-medium text-[var(--text-muted)]">Nombre de usuario</label>
+					<input
+						id="inv-username"
+						type="text"
+						name="username"
+						bind:value={invUsername}
+						placeholder="Ej: juan.perez"
+						class="input-field w-full"
+					/>
+					<p class="mt-1 text-[10px] text-[var(--text-dim)]">El usuario podra iniciar sesion con esto en lugar del email</p>
 				</div>
 
 				<div>

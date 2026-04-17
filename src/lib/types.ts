@@ -25,6 +25,7 @@ export type TipoProducto =
   | 'vinilo'
   | 'acrilio'
   | 'acrilio_circular'
+  | 'unico'
 
 export type TipoMovimiento = 'ingreso' | 'abono' | 'gasto' | 'ajuste'
 
@@ -33,6 +34,7 @@ export type TipoMovimiento = 'ingreso' | 'abono' | 'gasto' | 'ajuste'
 export interface Perfil {
   id:             string
   nombre:         string
+  username:       string | null
   rol:            Rol
   activo:         boolean
   avatar_url:     string | null
@@ -262,7 +264,8 @@ export const TIPO_LABEL: Record<TipoProducto, string> = {
   neon:             'Neon Flex',
   vinilo:           'Vinilo',
   acrilio:          'Acrílico',
-  acrilio_circular: 'Acrílico Circular'
+  acrilio_circular: 'Acrílico Circular',
+  unico:            'Producto Único'
 }
 
 export const ROL_LABEL: Record<Rol, string> = {

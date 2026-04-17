@@ -89,8 +89,8 @@ export const actions: Actions = {
 	// Cambiar estado general del pedido (solo admin)
 	cambiarEstadoPedido: async ({ request, locals }) => {
 		const usuario = await locals.getUsuario()
-		if (!usuario || usuario.rol !== 'admin') {
-			return fail(403, { error: 'Solo el administrador puede cambiar el estado del pedido' })
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'fabricador')) {
+			return fail(403, { error: 'Sin permisos para cambiar el estado del pedido' })
 		}
 
 		const form = await request.formData()

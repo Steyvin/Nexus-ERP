@@ -25,19 +25,26 @@ export const handle: Handle = async ({ event, resolve }) => {
 	)
 
 	// ── 2. Helper para obtener la sesión de forma segura ─────────────────────
+	let cachedSession: any = undefined
 	event.locals.getSession = async () => {
+		if (cachedSession !== undefined) return cachedSession
 		const {
 			data: { session },
 			error
 		} = await event.locals.supabase.auth.getSession()
-		if (error) return null
-		return session
+		cachedSession = error ? null : session
+		return cachedSession
 	}
 
-	// ── 3. Helper para obtener el perfil completo del usuario ─────────────────
+	// ── 3. Helper para obtener el perfil completo del usuario (cacheado por request)
+	let cachedUsuario: any = undefined
 	event.locals.getUsuario = async () => {
+		if (cachedUsuario !== undefined) return cachedUsuario
 		const { data: { user }, error: authErr } = await event.locals.supabase.auth.getUser()
-		if (authErr || !user) return null
+		if (authErr || !user) {
+			cachedUsuario = null
+			return null
+		}
 
 		const { data: perfil, error } = await event.locals.supabase
 			.from('perfiles')
@@ -45,10 +52,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 			.eq('id', user.id)
 			.single()
 
-		if (error || !perfil) return null
+		if (error || !perfil) {
+			cachedUsuario = null
+			return null
+		}
 
-		// Combina el perfil con el email que viene de auth.users
-		return { ...perfil, email: user.email ?? '' }
+		cachedUsuario = { ...perfil, email: user.email ?? '' }
+		return cachedUsuario
 	}
 
 	// ── 4. Protección de rutas ────────────────────────────────────────────────
@@ -56,25 +66,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const esRutaPublica = RUTAS_PUBLICAS.some((r) => pathname.startsWith(r))
 
 	if (!esRutaPublica) {
-		// Ruta protegida: verificar que hay usuario activo de forma segura
-		const { data: { user } } = await event.locals.supabase.auth.getUser()
+		// Ruta protegida: usar getUsuario() cacheado (1 sola vez por request)
+		const usuario = await event.locals.getUsuario()
 
-		if (!user) {
-			// Sin sesión → redirigir a login guardando la ruta destino
+		if (!usuario) {
+			// Sin sesión o perfil → redirigir a login guardando la ruta destino
 			const destino = encodeURIComponent(pathname)
 			redirect(303, `/login?next=${destino}`)
 		}
 
-		// Verificar que el perfil del usuario está activo
-		const { data: perfil } = await event.locals.supabase
-			.from('perfiles')
-			.select('activo')
-			.eq('id', user.id)
-			.single()
-
-		if (perfil && !perfil.activo) {
+		if (!usuario.activo) {
 			// Usuario desactivado → cerrar sesión y redirigir
 			await event.locals.supabase.auth.signOut()
+			cachedUsuario = undefined
 			redirect(303, '/login')
 		}
 	} else if (pathname === '/login') {
