@@ -64,6 +64,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 			const destino = encodeURIComponent(pathname)
 			redirect(303, `/login?next=${destino}`)
 		}
+
+		// Verificar que el perfil del usuario está activo
+		const { data: perfil } = await event.locals.supabase
+			.from('perfiles')
+			.select('activo')
+			.eq('id', user.id)
+			.single()
+
+		if (perfil && !perfil.activo) {
+			// Usuario desactivado → cerrar sesión y redirigir
+			await event.locals.supabase.auth.signOut()
+			redirect(303, '/login')
+		}
 	} else if (pathname === '/login') {
 		// Ya autenticado intentando ir a login → redirigir al dashboard
 		const session = await event.locals.getSession()
@@ -83,6 +96,22 @@ export const handle: Handle = async ({ event, resolve }) => {
 	response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
 	response.headers.set('X-Frame-Options', 'DENY')
 	response.headers.set('X-Content-Type-Options', 'nosniff')
+
+	// Content-Security-Policy: protección contra XSS e inyección de contenido
+	response.headers.set(
+		'Content-Security-Policy',
+		[
+			"default-src 'self'",
+			"script-src 'self' 'unsafe-inline'",
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+			"font-src 'self' https://fonts.gstatic.com",
+			"img-src 'self' data: blob: https://*.supabase.co",
+			"connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+			"frame-ancestors 'none'",
+			"base-uri 'self'",
+			"form-action 'self'"
+		].join('; ')
+	)
 
 	return response
 }

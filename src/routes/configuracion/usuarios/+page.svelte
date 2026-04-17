@@ -43,16 +43,6 @@
 	let invRol    = $state<Rol>('fabricador')
 	let enviando  = $state(false)
 
-	// Visibilidad de claves por usuario
-	let clavesVisibles = $state<Set<string>>(new Set())
-
-	function toggleClave(userId: string) {
-		const nuevoSet = new Set(clavesVisibles)
-		if (nuevoSet.has(userId)) nuevoSet.delete(userId)
-		else nuevoSet.add(userId)
-		clavesVisibles = nuevoSet
-	}
-
 	// Eliminar usuario
 	let eliminandoUsuario = $state<string | null>(null)
 	let nombreEliminar = $state('')
@@ -113,7 +103,6 @@
 						<tr class="border-b border-[var(--border)] text-left text-[11px] text-[var(--text-muted)]">
 							<th class="px-5 py-3 font-medium">Usuario</th>
 							<th class="px-5 py-3 font-medium">Rol</th>
-							<th class="px-5 py-3 font-medium">Clave</th>
 							<th class="px-5 py-3 font-medium">Último acceso</th>
 							<th class="px-5 py-3 font-medium">Miembro desde</th>
 							<th class="px-5 py-3 font-medium text-center">Estado</th>
@@ -172,31 +161,6 @@
 												{/each}
 											</select>
 										</form>
-									{/if}
-								</td>
-
-								<!-- Clave -->
-								<td class="px-5 py-3.5">
-									{#if u.clave_texto}
-										<div class="flex items-center gap-1.5">
-											<span class="text-xs font-mono text-[var(--text-dim)]">
-												{clavesVisibles.has(u.id) ? u.clave_texto : '••••••••'}
-											</span>
-											<button
-												type="button"
-												onclick={() => toggleClave(u.id)}
-												class="text-[var(--text-dim)] hover:text-[var(--text)] transition-colors"
-												title={clavesVisibles.has(u.id) ? 'Ocultar clave' : 'Mostrar clave'}
-											>
-												{#if clavesVisibles.has(u.id)}
-													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-												{:else}
-													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-												{/if}
-											</button>
-										</div>
-									{:else}
-										<span class="text-[11px] text-[var(--text-dim)]">—</span>
 									{/if}
 								</td>
 
@@ -325,20 +289,6 @@
 							<span class="text-[11px] text-[var(--text-dim)]">
 								{u.ultimo_acceso ? `Activo ${fmtRelativa(u.ultimo_acceso)}` : 'Nunca accedió'}
 							</span>
-							{#if u.clave_texto}
-								<div class="flex items-center gap-1">
-									<span class="text-[10px] font-mono text-[var(--text-dim)]">
-										{clavesVisibles.has(u.id) ? u.clave_texto : '••••••'}
-									</span>
-									<button type="button" onclick={() => toggleClave(u.id)} class="text-[var(--text-dim)] hover:text-[var(--text)]">
-										{#if clavesVisibles.has(u.id)}
-											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-										{:else}
-											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-										{/if}
-									</button>
-								</div>
-							{/if}
 
 							{#if !esMismo}
 								<div class="flex items-center gap-1 ml-auto">

@@ -12,5 +12,3 @@ export const supabase = createBrowserClient(
 	PUBLIC_SUPABASE_ANON_KEY
 )
 
-// Re-exportar tipos centralizados
-export type { Rol, Perfil as UsuarioApp } from './types'

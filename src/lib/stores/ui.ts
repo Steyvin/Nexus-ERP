@@ -3,9 +3,6 @@ import { writable } from 'svelte/store'
 // Sidebar abierta o cerrada (mobile)
 export const sidebarAbierta = writable(false)
 
-// Ruta activa para highlight en navegación
-export const rutaActiva = writable('')
-
 // Notificaciones/toasts
 export interface Toast {
 	id: string

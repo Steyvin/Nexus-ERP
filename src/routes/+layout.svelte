@@ -8,6 +8,7 @@
 	import Sidebar from '$lib/components/layout/Sidebar.svelte'
 	import Header from '$lib/components/layout/Header.svelte'
 	import Toast from '$lib/components/ui/Toast.svelte'
+	import InactivityGuard from '$lib/components/ui/InactivityGuard.svelte'
 	import type { LayoutData } from './$types'
 
 	let { data, children }: { data: LayoutData; children: any } = $props()
@@ -52,6 +53,7 @@
 {#if showShell}
 	<Sidebar />
 	<Header />
+	<InactivityGuard />
 	<main class="min-h-dvh bg-[var(--bg)] pt-14 lg:pl-[260px]">
 		<div class="mx-auto max-w-7xl p-4 sm:p-6">
 			{@render children()}

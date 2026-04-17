@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { PUBLIC_SUPABASE_URL } from '$env/static/public'
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private'
 import type { PageServerLoad, Actions } from './$types'
-import type { Rol } from '$lib/types'
+import { parseForm, esError, crearUsuarioSchema, cambiarRolSchema, toggleActivoSchema, eliminarUsuarioSchema, cambiarClaveSchema } from '$lib/utils/validate'
+import { registrarAudit } from '$lib/utils/audit'
 
 // Cliente admin con service_role (solo para operaciones de auth en el servidor)
 function getAdminClient() {
@@ -25,7 +26,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [perfilesRes, authUsersRes] = await Promise.all([
 		locals.supabase
 			.from('perfiles')
-			.select('id, nombre, rol, activo, ultimo_acceso, created_at, clave_texto')
+			.select('id, nombre, rol, activo, ultimo_acceso, created_at')
 			.order('created_at', { ascending: true }),
 
 		supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
@@ -52,29 +53,17 @@ export const actions: Actions = {
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
 		const form = await request.formData()
-		const email  = (form.get('email')  as string)?.trim().toLowerCase()
-		const nombre = (form.get('nombre') as string)?.trim()
-		const rol    = form.get('rol') as Rol
-		const clave  = (form.get('clave')  as string)
-
-		if (!email || !nombre || !rol || !clave) {
-			return fail(400, { error: 'Todos los campos son obligatorios' })
-		}
-
-		if (clave.length < 6) {
-			return fail(400, { error: 'La clave debe tener al menos 6 caracteres' })
-		}
+		const datos = parseForm(crearUsuarioSchema, form)
+		if (esError(datos)) return datos
 
 		const supabaseAdmin = getAdminClient()
 
 		// Crear usuario con contraseña asignada
-		// Solo pasamos 'nombre' en metadata para que el trigger handle_new_user
-		// pueda crear el perfil sin problemas. El rol lo actualizamos después.
 		const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
-			email,
-			password: clave,
+			email: datos.email,
+			password: datos.clave,
 			email_confirm: true,
-			user_metadata: { nombre, rol }
+			user_metadata: { nombre: datos.nombre, rol: datos.rol }
 		})
 
 		if (error) {
@@ -85,23 +74,31 @@ export const actions: Actions = {
 			return fail(400, { error: mensaje })
 		}
 
-		// Actualizar el rol y guardar la clave en texto plano
+		// Actualizar el rol en perfiles
 		if (newUser?.user) {
 			const { error: updateError } = await supabaseAdmin
 				.from('perfiles')
-				.update({ rol, clave_texto: clave })
+				.update({ rol: datos.rol })
 				.eq('id', newUser.user.id)
 
 			if (updateError) {
-				// El usuario fue creado en auth pero el rol no se pudo asignar
 				console.error('Error al asignar rol:', updateError)
 				return fail(500, {
-					error: `Usuario creado pero no se pudo asignar el rol "${rol}": ${updateError.message}`
+					error: `Usuario creado pero no se pudo asignar el rol "${datos.rol}": ${updateError.message}`
 				})
 			}
 		}
 
-		return { success: true, mensaje: `Usuario ${nombre} creado exitosamente` }
+		await registrarAudit(locals.supabase, {
+			accion: 'crear_usuario',
+			tabla: 'perfiles',
+			registro_id: newUser?.user?.id ?? '',
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { email: datos.email, nombre: datos.nombre, rol: datos.rol }
+		})
+
+		return { success: true, mensaje: `Usuario ${datos.nombre} creado exitosamente` }
 	},
 
 	// ── Cambiar rol de un usuario ─────────────────────────────────────────────
@@ -109,21 +106,31 @@ export const actions: Actions = {
 		const usuario = await locals.getUsuario()
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
-		const form   = await request.formData()
-		const userId = form.get('user_id') as string
-		const rol    = form.get('rol') as Rol
+		const form = await request.formData()
+		const datos = parseForm(cambiarRolSchema, form)
+		if (esError(datos)) return datos
 
-		if (userId === usuario.id) {
+		if (datos.user_id === usuario.id) {
 			return fail(400, { error: 'No puedes cambiar tu propio rol' })
 		}
 
 		const supabaseAdmin = getAdminClient()
 		const { error } = await supabaseAdmin
 			.from('perfiles')
-			.update({ rol })
-			.eq('id', userId)
+			.update({ rol: datos.rol })
+			.eq('id', datos.user_id)
 
 		if (error) return fail(500, { error: `Error al actualizar rol: ${error.message}` })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'cambiar_rol',
+			tabla: 'perfiles',
+			registro_id: datos.user_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { nuevo_rol: datos.rol }
+		})
+
 		return { success: true }
 	},
 
@@ -132,20 +139,32 @@ export const actions: Actions = {
 		const usuario = await locals.getUsuario()
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
-		const form    = await request.formData()
-		const userId  = form.get('user_id') as string
-		const activo  = form.get('activo') === 'true'
+		const form = await request.formData()
+		const datos = parseForm(toggleActivoSchema, form)
+		if (esError(datos)) return datos
 
-		if (userId === usuario.id) {
+		if (datos.user_id === usuario.id) {
 			return fail(400, { error: 'No puedes desactivarte a ti mismo' })
 		}
 
+		const nuevoEstado = datos.activo !== 'true'
+
 		const { error } = await locals.supabase
 			.from('perfiles')
-			.update({ activo: !activo })
-			.eq('id', userId)
+			.update({ activo: nuevoEstado })
+			.eq('id', datos.user_id)
 
 		if (error) return fail(500, { error: 'Error al actualizar estado' })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'toggle_activo',
+			tabla: 'perfiles',
+			registro_id: datos.user_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { activo: nuevoEstado }
+		})
+
 		return { success: true }
 	},
 
@@ -154,10 +173,11 @@ export const actions: Actions = {
 		const usuario = await locals.getUsuario()
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
-		const form   = await request.formData()
-		const userId = form.get('user_id') as string
+		const form = await request.formData()
+		const datos = parseForm(eliminarUsuarioSchema, form)
+		if (esError(datos)) return datos
 
-		if (userId === usuario.id) {
+		if (datos.user_id === usuario.id) {
 			return fail(400, { error: 'No puedes eliminarte a ti mismo' })
 		}
 
@@ -167,12 +187,21 @@ export const actions: Actions = {
 		await supabaseAdmin
 			.from('perfiles')
 			.delete()
-			.eq('id', userId)
+			.eq('id', datos.user_id)
 
 		// Eliminar usuario de auth
-		const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+		const { error } = await supabaseAdmin.auth.admin.deleteUser(datos.user_id)
 
 		if (error) return fail(500, { error: 'Error al eliminar usuario: ' + error.message })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'eliminar_usuario',
+			tabla: 'perfiles',
+			registro_id: datos.user_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
+		})
+
 		return { success: true }
 	},
 
@@ -181,28 +210,26 @@ export const actions: Actions = {
 		const usuario = await locals.getUsuario()
 		if (usuario?.rol !== 'admin') return fail(403, { error: 'Sin permisos' })
 
-		const form      = await request.formData()
-		const userId    = form.get('user_id') as string
-		const nuevaClave = (form.get('nueva_clave') as string)
-
-		if (!nuevaClave || nuevaClave.length < 6) {
-			return fail(400, { error: 'La clave debe tener al menos 6 caracteres' })
-		}
+		const form = await request.formData()
+		const datos = parseForm(cambiarClaveSchema, form)
+		if (esError(datos)) return datos
 
 		const supabaseAdmin = getAdminClient()
 
 		// Actualizar en Supabase Auth
-		const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-			password: nuevaClave
+		const { error } = await supabaseAdmin.auth.admin.updateUserById(datos.user_id, {
+			password: datos.nueva_clave
 		})
 
 		if (error) return fail(500, { error: 'Error al cambiar contraseña: ' + error.message })
 
-		// Actualizar clave en texto plano en perfiles
-		await supabaseAdmin
-			.from('perfiles')
-			.update({ clave_texto: nuevaClave })
-			.eq('id', userId)
+		await registrarAudit(locals.supabase, {
+			accion: 'cambiar_clave',
+			tabla: 'perfiles',
+			registro_id: datos.user_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
+		})
 
 		return { success: true }
 	}

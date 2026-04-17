@@ -6,6 +6,7 @@ export { mostrarToast }                          from './stores/ui'
 export { cerrarSesion, iniciarSesion }           from './utils/auth'
 export {
 	session, usuario, cargando,
-	estaAutenticado, esAdmin, esFabricador, esDiseñador, esFinanzas,
-	tieneRol, puedeVerFinanzas, puedeGestionar, puedeActualizarProduccion
+	esAdmin, esFabricador, esDiseñador, esFinanzas,
+	tieneRol
 } from './stores/auth'
+

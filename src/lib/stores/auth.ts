@@ -17,7 +17,6 @@ export const cargando = writable(true)
 
 // ── Derivados de rol ──────────────────────────────────────────────────────────
 
-export const estaAutenticado = derived(session, ($s) => !!$s)
 export const esAdmin         = derived(usuario, ($u) => $u?.rol === 'admin')
 export const esFabricador    = derived(usuario, ($u) => $u?.rol === 'fabricador')
 export const esDiseñador     = derived(usuario, ($u) => $u?.rol === 'diseñador')
@@ -34,24 +33,3 @@ export function tieneRol(...roles: Rol[]): boolean {
 	return !!u && u.activo && roles.includes(u.rol)
 }
 
-/**
- * Verifica si el usuario puede ver datos financieros (precios de fabricación).
- * Solo admin y finanzas tienen acceso.
- */
-export function puedeVerFinanzas(): boolean {
-	return tieneRol('admin', 'finanzas')
-}
-
-/**
- * Verifica si el usuario puede crear/editar cotizaciones y pedidos.
- */
-export function puedeGestionar(): boolean {
-	return tieneRol('admin', 'finanzas')
-}
-
-/**
- * Verifica si el usuario puede actualizar estados de producción.
- */
-export function puedeActualizarProduccion(): boolean {
-	return tieneRol('admin', 'fabricador', 'diseñador')
-}

@@ -1,4 +1,7 @@
+import { fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
+import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema } from '$lib/utils/validate'
+import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const supabase = locals.supabase
@@ -63,78 +66,121 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 }
 
 export const actions: Actions = {
-	// Cambiar estado de producción de un item
+	// Cambiar estado de producción de un item (admin o fabricador)
 	cambiarEstadoItem: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'fabricador')) {
+			return fail(403, { error: 'Sin permisos para cambiar estado de producción' })
+		}
+
 		const form = await request.formData()
-		const itemId = form.get('item_id') as string
-		const estado = form.get('estado') as string
+		const datos = parseForm(cambiarEstadoItemSchema, form)
+		if (esError(datos)) return datos
 
 		const { error } = await locals.supabase
 			.from('pedido_items')
-			.update({ estado_produccion: estado })
-			.eq('id', itemId)
+			.update({ estado_produccion: datos.estado })
+			.eq('id', datos.item_id)
 
-		if (error) return { error: 'Error al actualizar estado' }
+		if (error) return fail(500, { error: 'Error al actualizar estado' })
 		return { success: true }
 	},
 
-	// Cambiar estado general del pedido (admin)
+	// Cambiar estado general del pedido (solo admin)
 	cambiarEstadoPedido: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || usuario.rol !== 'admin') {
+			return fail(403, { error: 'Solo el administrador puede cambiar el estado del pedido' })
+		}
+
 		const form = await request.formData()
-		const pedidoId = form.get('pedido_id') as string
-		const estado = form.get('estado') as string
+		const datos = parseForm(cambiarEstadoPedidoSchema, form)
+		if (esError(datos)) return datos
 
 		const { error } = await locals.supabase
 			.from('pedidos')
-			.update({ estado })
-			.eq('id', pedidoId)
+			.update({ estado: datos.estado })
+			.eq('id', datos.pedido_id)
 
-		if (error) return { error: 'Error al cambiar estado del pedido' }
+		if (error) return fail(500, { error: 'Error al cambiar estado del pedido' })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'cambiar_estado_pedido',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { nuevo_estado: datos.estado }
+		})
+
 		return { success: true }
 	},
 
-	// Subir archivo de diseño (diseñador)
+	// Subir archivo de diseño (admin o diseñador)
 	subirDiseno: async ({ request, locals }) => {
-		const form = await request.formData()
-		const itemId = form.get('item_id') as string
-		const url = (form.get('archivo_url') as string)?.trim()
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
+			return fail(403, { error: 'Sin permisos para subir diseños' })
+		}
 
-		if (!url) return { error: 'URL del archivo es requerida' }
+		const form = await request.formData()
+		const datos = parseForm(subirDisenoSchema, form)
+		if (esError(datos)) return datos
 
 		const { error } = await locals.supabase
 			.from('pedido_items')
-			.update({ archivo_diseno_url: url })
-			.eq('id', itemId)
+			.update({ archivo_diseno_url: datos.archivo_url })
+			.eq('id', datos.item_id)
 
-		if (error) return { error: 'Error al subir diseño' }
+		if (error) return fail(500, { error: 'Error al subir diseño' })
 		return { success: true }
 	},
 
-	// Asignar item a un usuario (admin)
+	// Asignar item a un usuario (solo admin)
 	asignarItem: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || usuario.rol !== 'admin') {
+			return fail(403, { error: 'Solo el administrador puede asignar items' })
+		}
+
 		const form = await request.formData()
-		const itemId = form.get('item_id') as string
-		const userId = form.get('user_id') as string
+		const datos = parseForm(asignarItemSchema, form)
+		if (esError(datos)) return datos
 
 		const { error } = await locals.supabase
 			.from('pedido_items')
-			.update({ asignado_a: userId || null })
-			.eq('id', itemId)
+			.update({ asignado_a: datos.user_id || null })
+			.eq('id', datos.item_id)
 
-		if (error) return { error: 'Error al asignar' }
+		if (error) return fail(500, { error: 'Error al asignar' })
 		return { success: true }
 	},
 
-	// Eliminar pedido (admin)
+	// Eliminar pedido (solo admin)
 	eliminarPedido: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || usuario.rol !== 'admin') {
+			return fail(403, { error: 'Solo el administrador puede eliminar pedidos' })
+		}
+
 		const form = await request.formData()
-		const pedidoId = form.get('pedido_id') as string
+		const datos = parseForm(eliminarPedidoSchema, form)
+		if (esError(datos)) return datos
 
-		await locals.supabase.from('pedido_items').delete().eq('pedido_id', pedidoId)
+		await locals.supabase.from('pedido_items').delete().eq('pedido_id', datos.pedido_id)
 
-		const { error } = await locals.supabase.from('pedidos').delete().eq('id', pedidoId)
+		const { error } = await locals.supabase.from('pedidos').delete().eq('id', datos.pedido_id)
 
-		if (error) return { error: 'Error al eliminar pedido' }
+		if (error) return fail(500, { error: 'Error al eliminar pedido' })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'eliminar_pedido',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
+		})
+
 		return { success: true }
 	}
 }

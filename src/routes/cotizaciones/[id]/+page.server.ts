@@ -1,5 +1,7 @@
-import { error, redirect } from '@sveltejs/kit'
+import { error, redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
+import { parseForm, esError, actualizarItemCotSchema, actualizarTotalCotSchema, cambiarEstadoCotSchema, convertirPedidoSchema, eliminarCotSchema } from '$lib/utils/validate'
+import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const supabase = locals.supabase
@@ -32,119 +34,152 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 }
 
 export const actions: Actions = {
-	// Actualizar precio de un item
+	// Actualizar precio de un item (admin o finanzas)
 	actualizarItem: async ({ request, locals }) => {
-		const form = await request.formData()
-		const itemId = form.get('item_id') as string
-		const precioCliente = Number(form.get('precio_cliente'))
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para modificar precios' })
+		}
 
-		if (!itemId || isNaN(precioCliente)) return { error: 'Datos inválidos' }
+		const form = await request.formData()
+		const datos = parseForm(actualizarItemCotSchema, form)
+		if (esError(datos)) return datos
 
 		const { error: err } = await locals.supabase
 			.from('cotizacion_items')
-			.update({ precio_cliente: Math.round(precioCliente) })
-			.eq('id', itemId)
+			.update({ precio_cliente: Math.round(datos.precio_cliente) })
+			.eq('id', datos.item_id)
 
-		if (err) return { error: 'Error al actualizar item' }
+		if (err) return fail(500, { error: 'Error al actualizar item' })
 
 		// Recalcular totales de la cotización
-		const cotizacionId = form.get('cotizacion_id') as string
 		const { data: items } = await locals.supabase
 			.from('cotizacion_items')
 			.select('precio_cliente')
-			.eq('cotizacion_id', cotizacionId)
+			.eq('cotizacion_id', datos.cotizacion_id)
 
 		const subtotal = (items ?? []).reduce((s, i) => s + Number(i.precio_cliente), 0)
-		const descuento = Number(form.get('descuento') ?? 0)
 
 		await locals.supabase
 			.from('cotizaciones')
 			.update({
 				precio_subtotal: subtotal,
-				precio_total: subtotal - descuento
+				precio_total: subtotal - datos.descuento
 			})
-			.eq('id', cotizacionId)
+			.eq('id', datos.cotizacion_id)
+
+		await registrarAudit(locals.supabase, {
+			accion: 'cambiar_precio_item',
+			tabla: 'cotizacion_items',
+			registro_id: datos.item_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { precio_cliente: datos.precio_cliente, cotizacion_id: datos.cotizacion_id }
+		})
 
 		return { success: true }
 	},
 
-	// Actualizar precio total manualmente
+	// Actualizar precio total manualmente (admin o finanzas)
 	actualizarTotal: async ({ request, locals }) => {
-		const form = await request.formData()
-		const id = form.get('id') as string
-		const precioTotal = Number(form.get('precio_total'))
-
-		if (!id || isNaN(precioTotal)) return { error: 'Datos inválidos' }
-
-		const { error: err } = await locals.supabase
-			.from('cotizaciones')
-			.update({ precio_total: Math.round(precioTotal) })
-			.eq('id', id)
-
-		if (err) return { error: 'Error al actualizar precio total' }
-		return { success: true }
-	},
-
-	// Cambiar estado
-	cambiarEstado: async ({ request, locals }) => {
-		const form = await request.formData()
-		const id = form.get('id') as string
-		const estado = form.get('estado') as string
-
-		const { error: err } = await locals.supabase
-			.from('cotizaciones')
-			.update({ estado })
-			.eq('id', id)
-
-		if (err) return { error: 'Error al cambiar estado' }
-		return { success: true }
-	},
-
-	// Convertir a pedido
-	convertirPedido: async ({ request, locals }) => {
-		const form = await request.formData()
-		const cotId = form.get('id') as string
 		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para modificar totales' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(actualizarTotalCotSchema, form)
+		if (esError(datos)) return datos
+
+		const { error: err } = await locals.supabase
+			.from('cotizaciones')
+			.update({ precio_total: Math.round(datos.precio_total) })
+			.eq('id', datos.id)
+
+		if (err) return fail(500, { error: 'Error al actualizar precio total' })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'cambiar_total_cotizacion',
+			tabla: 'cotizaciones',
+			registro_id: datos.id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { precio_total: datos.precio_total }
+		})
+
+		return { success: true }
+	},
+
+	// Cambiar estado (admin o finanzas)
+	cambiarEstado: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para cambiar estado' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(cambiarEstadoCotSchema, form)
+		if (esError(datos)) return datos
+
+		const { error: err } = await locals.supabase
+			.from('cotizaciones')
+			.update({ estado: datos.estado })
+			.eq('id', datos.id)
+
+		if (err) return fail(500, { error: 'Error al cambiar estado' })
+		return { success: true }
+	},
+
+	// Convertir a pedido (admin o finanzas)
+	convertirPedido: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para convertir a pedido' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(convertirPedidoSchema, form)
+		if (esError(datos)) return datos
+
 		const supabase = locals.supabase
 
 		// Cargar cotización con items
 		const { data: cot } = await supabase
 			.from('cotizaciones')
 			.select('*, cotizacion_items(*)')
-			.eq('id', cotId)
+			.eq('id', datos.id)
 			.single()
 
-		if (!cot) return { error: 'Cotización no encontrada' }
+		if (!cot) return fail(404, { error: 'Cotización no encontrada' })
 
 		// Crear pedido (incluir abono si existe)
-		const abono = Number(form.get('abono') ?? 0)
 		const { data: pedido, error: errPedido } = await supabase
 			.from('pedidos')
 			.insert({
 				cotizacion_id: cot.id,
 				cliente_id: cot.cliente_id,
-				creado_por: usuario?.id ?? null,
+				creado_por: usuario.id,
 				precio_total: cot.precio_total,
-				abono: abono > 0 ? abono : 0,
+				abono: datos.abono > 0 ? datos.abono : 0,
 				nota: cot.nota,
 				imagen_url: cot.imagen_url
 			})
 			.select('id')
 			.single()
 
-		if (errPedido || !pedido) return { error: 'Error al crear pedido' }
+		if (errPedido || !pedido) return fail(500, { error: 'Error al crear pedido' })
 
 		// Registrar movimiento financiero del abono si es > 0
-		if (abono > 0) {
+		if (datos.abono > 0) {
 			await supabase
 				.from('movimientos_financieros')
 				.insert({
 					pedido_id: pedido.id,
 					tipo: 'abono',
 					concepto: 'Abono inicial al crear pedido',
-					monto: abono,
+					monto: datos.abono,
 					fecha: new Date().toISOString().slice(0, 10),
-					registrado_por: usuario?.id ?? null
+					registrado_por: usuario.id
 				})
 		}
 
@@ -164,35 +199,59 @@ export const actions: Actions = {
 			const { error: errItems } = await supabase
 				.from('pedido_items')
 				.insert(pedidoItems)
-			if (errItems) return { error: 'Error al copiar items al pedido' }
+			if (errItems) return fail(500, { error: 'Error al copiar items al pedido' })
 		}
 
 		// Marcar cotización como convertida
 		await supabase
 			.from('cotizaciones')
 			.update({ estado: 'aprobada' })
-			.eq('id', cotId)
+			.eq('id', datos.id)
+
+		await registrarAudit(locals.supabase, {
+			accion: 'convertir_a_pedido',
+			tabla: 'cotizaciones',
+			registro_id: datos.id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { pedido_id: pedido.id, abono: datos.abono }
+		})
 
 		redirect(303, `/pedidos/${pedido.id}`)
 	},
 
-	// Eliminar cotización
+	// Eliminar cotización (admin o finanzas)
 	eliminar: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para eliminar cotizaciones' })
+		}
+
 		const form = await request.formData()
-		const id = form.get('id') as string
+		const datos = parseForm(eliminarCotSchema, form)
+		if (esError(datos)) return datos
 
 		// Primero eliminar items (cascade debería hacerlo, pero por seguridad)
 		await locals.supabase
 			.from('cotizacion_items')
 			.delete()
-			.eq('cotizacion_id', id)
+			.eq('cotizacion_id', datos.id)
 
 		const { error: err } = await locals.supabase
 			.from('cotizaciones')
 			.delete()
-			.eq('id', id)
+			.eq('id', datos.id)
 
-		if (err) return { error: 'Error al eliminar' }
+		if (err) return fail(500, { error: 'Error al eliminar' })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'eliminar_cotizacion',
+			tabla: 'cotizaciones',
+			registro_id: datos.id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
+		})
+
 		redirect(303, '/cotizaciones')
 	}
 }

@@ -1287,7 +1287,7 @@
 	{#if $totalItems > 0}
 		<a
 			href="/cotizaciones/nueva"
-			class="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105"
+			class="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-medium text-[#080808] shadow-lg transition-transform hover:scale-105"
 		>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
 			Ver carrito ({$totalItems})
@@ -1409,13 +1409,6 @@
 		background: #141414;
 	}
 
-	.toggle-row {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		cursor: pointer;
-		padding: 4px 0;
-	}
 	.toggle-check {
 		appearance: none;
 		width: 44px; height: 24px;

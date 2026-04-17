@@ -10,9 +10,14 @@
 	let cargando = $state(false)
 
 	// Si viene de una ruta protegida, redirigir ahí después del login
-	let destino = $derived(
-		($page.url.searchParams.get('next') as string | null) ?? '/dashboard'
-	)
+	// Sanitizar: solo aceptar rutas internas (empiezan con / y no contienen //)
+	let destino = $derived.by(() => {
+		const raw = $page.url.searchParams.get('next')
+		if (raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://')) {
+			return raw
+		}
+		return '/dashboard'
+	})
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault()
