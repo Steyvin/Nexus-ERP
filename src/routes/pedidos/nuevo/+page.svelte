@@ -26,7 +26,11 @@
 	let clienteId = $state('')
 	let fechaEntrega = $state('')
 	let nota = $state('')
+	let abonoInicial = $state(0)
+	let bancoAbono = $state('')
 	let guardando = $state(false)
+
+	const bancos = $derived(data.bancos ?? [])
 
 	// ── Nuevo cliente inline ──
 	let creandoCliente = $state(false)
@@ -117,6 +121,11 @@
 		if (carrito.length === 0) return mostrarToast('Agrega al menos un producto', 'error')
 		if (!clienteId) return mostrarToast('Selecciona un cliente', 'error')
 
+		const abono = Math.max(0, Math.round(Number(abonoInicial) || 0))
+		if (abono > Math.round(precioTotal)) {
+			return mostrarToast('El abono no puede ser mayor al total', 'error')
+		}
+
 		guardando = true
 		const userId = get(session)?.user?.id ?? null
 
@@ -128,7 +137,7 @@
 				creado_por: userId,
 				estado: 'Pedido realizado',
 				precio_total: Math.round(precioTotal),
-				abono: 0,
+				abono,
 				fecha_entrega: fechaEntrega || null,
 				nota: nota.trim() || null
 			})
@@ -154,9 +163,31 @@
 
 		const { error: errItems } = await supabase.from('pedido_items').insert(itemsDB)
 
-		guardando = false
-		if (errItems) return mostrarToast('Error al guardar productos', 'error')
+		if (errItems) {
+			guardando = false
+			return mostrarToast('Error al guardar productos', 'error')
+		}
 
+		// 3. Registrar abono inicial si aplica
+		if (abono > 0) {
+			await supabase.from('movimientos_financieros').insert({
+				pedido_id: pedido.id,
+				tipo: 'abono',
+				concepto: 'Abono inicial al crear pedido',
+				monto: abono,
+				fecha: new Date().toISOString().slice(0, 10),
+				registrado_por: userId,
+				banco_id: bancoAbono || null
+			})
+
+			await supabase.from('pedido_notas').insert({
+				pedido_id: pedido.id,
+				autor_id: userId,
+				contenido: `[Abono] Abono inicial de ${fmt(abono)}`
+			})
+		}
+
+		guardando = false
 		mostrarToast('Pedido creado')
 		goto('/pedidos')
 	}
@@ -432,6 +463,43 @@
 					bind:value={fechaEntrega}
 					class="input-field w-full"
 				/>
+			</div>
+
+			<!-- Abono inicial -->
+			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+				<label for="abono" class="mb-2 block text-sm font-medium text-[var(--text)]">
+					Abono inicial <span class="font-normal text-[var(--text-dim)]">(opcional)</span>
+				</label>
+				<div class="relative">
+					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
+					<input
+						id="abono"
+						type="number"
+						bind:value={abonoInicial}
+						min="0"
+						max={precioTotal}
+						placeholder="0"
+						class="input-field w-full !pl-8"
+					/>
+				</div>
+
+				{#if abonoInicial > 0 && bancos.length > 0}
+					<div class="mt-3">
+						<label for="banco-abono" class="mb-1 block text-[10px] text-[var(--text-muted)]">Registrar en</label>
+						<select id="banco-abono" bind:value={bancoAbono} class="input-field w-full">
+							<option value="">Sin especificar</option>
+							{#each bancos as b}
+								<option value={b.id}>{b.nombre}</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
+
+				{#if precioTotal > 0 && abonoInicial > 0}
+					<p class="mt-2 text-[10px] text-[var(--text-dim)]">
+						Saldo pendiente: <span class="text-[var(--text-muted)]">{fmt(Math.max(0, precioTotal - (Number(abonoInicial) || 0)))}</span>
+					</p>
+				{/if}
 			</div>
 
 			<!-- Nota -->

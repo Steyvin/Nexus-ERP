@@ -86,8 +86,61 @@ export const agregarNotaSchema = z.object({
 export const actualizarPedidoSchema = z.object({
 	pedido_id: uuid,
 	fecha_entrega: textoOpcional,
-	abono: numeroPositivo,
 	nota: textoOpcional
+})
+
+const uuidOpcional = z.string().uuid('ID inválido').or(z.literal('')).optional().transform((v) => (v && v.length > 0 ? v : null))
+
+export const agregarAbonoSchema = z.object({
+	pedido_id: uuid,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	concepto: textoOpcional,
+	banco_id: uuidOpcional
+})
+
+export const eliminarAbonoSchema = z.object({
+	pedido_id: uuid,
+	movimiento_id: uuid
+})
+
+// ── Schemas para Bancos ────────────────────────────────────────────────────────
+
+const tipoBanco = z.enum(['banco', 'cartera', 'efectivo'])
+
+export const crearBancoSchema = z.object({
+	nombre: textoRequerido,
+	tipo: tipoBanco.default('banco'),
+	numero_cuenta: textoOpcional,
+	saldo_inicial: z.coerce.number().default(0),
+	color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color inválido').default('#3b82f6'),
+	notas: textoOpcional
+})
+
+export const actualizarBancoSchema = z.object({
+	banco_id: uuid,
+	nombre: textoRequerido,
+	tipo: tipoBanco,
+	numero_cuenta: textoOpcional,
+	color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color inválido'),
+	notas: textoOpcional,
+	activo: z.enum(['true', 'false']).transform((v) => v === 'true')
+})
+
+export const eliminarBancoSchema = z.object({
+	banco_id: uuid
+})
+
+export const agregarMovimientoBancoSchema = z.object({
+	banco_id: uuid,
+	tipo: z.enum(['ingreso', 'gasto', 'compra', 'pago', 'ajuste', 'transferencia']),
+	concepto: textoRequerido,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	fecha: textoOpcional
+})
+
+export const eliminarMovimientoBancoSchema = z.object({
+	banco_id: uuid,
+	movimiento_id: uuid
 })
 
 // ── Schemas para Pedidos [id] (con campos extra para timeline) ────────────────

@@ -26,6 +26,7 @@
 		{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
 		{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 		{ href: '/clientes', label: 'Clientes', icon: 'users' },
+		{ href: '/bancos', label: 'Bancos', icon: 'wallet' },
 		{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 	]
 
@@ -54,6 +55,7 @@
 				{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
 				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 				{ href: '/clientes', label: 'Clientes', icon: 'users' },
+				{ href: '/bancos', label: 'Bancos', icon: 'wallet' },
 				{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 			]
 		return [{ href: '/dashboard', label: 'Dashboard', icon: 'grid' }]
@@ -219,6 +221,18 @@
 										x2="12"
 										y2="18.01"
 									/><line x1="16" y1="18" x2="16" y2="18.01" /></svg
+								>
+							{:else if item.icon === 'wallet'}
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 11h2"/><path d="M4 7V5a2 2 0 012-2h12"/></svg
 								>
 							{:else if item.icon === 'bar-chart'}
 								<svg

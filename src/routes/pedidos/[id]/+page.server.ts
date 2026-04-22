@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, marcarDisenoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, marcarDisenoSchema, agregarAbonoSchema, eliminarAbonoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -40,11 +40,34 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		perfiles = data ?? []
 	}
 
+	// Abonos del pedido (admin / finanzas)
+	let abonos: any[] = []
+	let bancos: any[] = []
+	if (rol === 'admin' || rol === 'finanzas') {
+		const [abonosRes, bancosRes] = await Promise.all([
+			supabase
+				.from('movimientos_financieros')
+				.select('id, concepto, monto, fecha, created_at, banco_id, registrado_por, perfiles:registrado_por(nombre), bancos:banco_id(id, nombre, color)')
+				.eq('pedido_id', params.id)
+				.eq('tipo', 'abono')
+				.order('created_at', { ascending: false }),
+			supabase
+				.from('bancos')
+				.select('id, nombre, tipo, color')
+				.eq('activo', true)
+				.order('nombre')
+		])
+		abonos = abonosRes.data ?? []
+		bancos = bancosRes.data ?? []
+	}
+
 	return {
 		pedido: { ...pedido, pedido_items: items, pedido_notas: notas },
 		rol,
 		userId: usuario?.id ?? null,
-		perfiles
+		perfiles,
+		abonos,
+		bancos
 	}
 }
 
@@ -259,7 +282,6 @@ export const actions: Actions = {
 			.from('pedidos')
 			.update({
 				fecha_entrega: datos.fecha_entrega || null,
-				abono: Math.round(datos.abono),
 				nota: datos.nota || null
 			})
 			.eq('id', datos.pedido_id)
@@ -279,7 +301,161 @@ export const actions: Actions = {
 			registro_id: datos.pedido_id,
 			usuario_id: usuario.id,
 			usuario_nombre: usuario.nombre,
-			detalles: { abono: datos.abono, fecha_entrega: datos.fecha_entrega }
+			detalles: { fecha_entrega: datos.fecha_entrega }
+		})
+
+		return { success: true }
+	},
+
+	// Agregar abono al pedido (admin o finanzas)
+	agregarAbono: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para registrar abonos' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(agregarAbonoSchema, form)
+		if (esError(datos)) return datos
+
+		const supabase = locals.supabase
+
+		// Cargar total actual del pedido para validar que no se exceda
+		const { data: pedido, error: errPedido } = await supabase
+			.from('pedidos')
+			.select('precio_total, abono')
+			.eq('id', datos.pedido_id)
+			.single()
+
+		if (errPedido || !pedido) return fail(404, { error: 'Pedido no encontrado' })
+
+		const monto = Math.round(datos.monto)
+		const abonoActual = Number(pedido.abono) || 0
+		const total = Number(pedido.precio_total) || 0
+		const nuevoAbono = abonoActual + monto
+
+		if (nuevoAbono > total) {
+			return fail(400, { error: `El abono excede el saldo pendiente (máximo ${total - abonoActual})` })
+		}
+
+		// 1. Actualizar abono acumulado
+		const { error: errUpdate } = await supabase
+			.from('pedidos')
+			.update({ abono: nuevoAbono })
+			.eq('id', datos.pedido_id)
+
+		if (errUpdate) return fail(500, { error: 'Error al actualizar el abono' })
+
+		// 2. Registrar movimiento financiero
+		const concepto = datos.concepto?.trim() || 'Abono'
+		await supabase.from('movimientos_financieros').insert({
+			pedido_id: datos.pedido_id,
+			tipo: 'abono',
+			concepto,
+			monto,
+			fecha: new Date().toISOString().slice(0, 10),
+			registrado_por: usuario.id,
+			banco_id: datos.banco_id ?? null
+		})
+
+		// 3. Registrar en timeline (incluye banco si aplica)
+		let contenido = `[Abono] Abono de $${monto.toLocaleString('es-CO')} — ${concepto}`
+		if (datos.banco_id) {
+			const { data: banco } = await supabase
+				.from('bancos')
+				.select('nombre')
+				.eq('id', datos.banco_id)
+				.single()
+			if (banco?.nombre) contenido += ` (en ${banco.nombre})`
+		}
+
+		await registrarCambio(supabase, datos.pedido_id, usuario.id, contenido)
+
+		await registrarAudit(supabase, {
+			accion: 'agregar_abono',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { monto, concepto, banco_id: datos.banco_id, nuevo_abono_total: nuevoAbono }
+		})
+
+		return { success: true }
+	},
+
+	// Eliminar un abono registrado (admin o finanzas)
+	eliminarAbono: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para eliminar abonos' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(eliminarAbonoSchema, form)
+		if (esError(datos)) return datos
+
+		const supabase = locals.supabase
+
+		// Cargar el movimiento a eliminar
+		const { data: movimiento, error: errMov } = await supabase
+			.from('movimientos_financieros')
+			.select('id, monto, concepto, pedido_id, tipo')
+			.eq('id', datos.movimiento_id)
+			.single()
+
+		if (errMov || !movimiento) return fail(404, { error: 'Abono no encontrado' })
+		if (movimiento.tipo !== 'abono' || movimiento.pedido_id !== datos.pedido_id) {
+			return fail(400, { error: 'Movimiento inválido' })
+		}
+
+		// Cargar pedido para recalcular abono
+		const { data: pedido, error: errPedido } = await supabase
+			.from('pedidos')
+			.select('abono')
+			.eq('id', datos.pedido_id)
+			.single()
+
+		if (errPedido || !pedido) return fail(404, { error: 'Pedido no encontrado' })
+
+		const monto = Number(movimiento.monto) || 0
+		const nuevoAbono = Math.max(0, (Number(pedido.abono) || 0) - monto)
+
+		// 1. Actualizar abono acumulado
+		const { error: errUpdate } = await supabase
+			.from('pedidos')
+			.update({ abono: nuevoAbono })
+			.eq('id', datos.pedido_id)
+
+		if (errUpdate) return fail(500, { error: 'Error al actualizar el abono' })
+
+		// 2. Eliminar movimiento
+		const { error: errDelete } = await supabase
+			.from('movimientos_financieros')
+			.delete()
+			.eq('id', datos.movimiento_id)
+
+		if (errDelete) return fail(500, { error: 'Error al eliminar el abono' })
+
+		// 3. Registrar en timeline
+		await registrarCambio(
+			supabase,
+			datos.pedido_id,
+			usuario.id,
+			`[Abono] Abono eliminado de $${monto.toLocaleString('es-CO')} — ${movimiento.concepto ?? 'Abono'}`
+		)
+
+		await registrarAudit(supabase, {
+			accion: 'eliminar_abono',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: {
+				movimiento_id: datos.movimiento_id,
+				monto,
+				concepto: movimiento.concepto,
+				nuevo_abono_total: nuevoAbono
+			}
 		})
 
 		return { success: true }

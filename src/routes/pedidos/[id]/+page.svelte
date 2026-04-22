@@ -22,6 +22,9 @@
 	const esDiseñador = $derived(data.rol === 'diseñador')
 	const puedeVerPrecios = $derived(esAdmin || esFinanzas)
 	const puedeEditarEstadoItems = $derived(esAdmin || esFabricador)
+	const puedeGestionarAbonos = $derived(esAdmin || esFinanzas)
+	const abonos = $derived(data.abonos ?? [])
+	const bancos = $derived(data.bancos ?? [])
 
 	// Cálculos
 	const costoFab = $derived(items.reduce((s: number, i: any) => s + Number(i.precio_fabricacion ?? 0), 0))
@@ -57,29 +60,35 @@
 	let nuevaNota = $state('')
 	let editandoInfo = $state(false)
 	let editFechaEntrega = $state('')
-	let editAbono = $state(0)
 	let editNota = $state('')
+
+	// Abonos
+	let agregandoAbono = $state(false)
+	let abonoMonto = $state(0)
+	let abonoConcepto = $state('')
+	let abonoBanco = $state('')
+	const saldoPendiente = $derived(Math.max(0, Number(ped.precio_total ?? 0) - Number(ped.abono ?? 0)))
 
 	// Sincroniza los campos del formulario con el pedido cuando no se está editando
 	$effect(() => {
 		if (!editandoInfo) {
 			editFechaEntrega = ped.fecha_entrega ?? ''
-			editAbono = Number(ped.abono) || 0
 			editNota = ped.nota ?? ''
 		}
 	})
 
 	// Detectar tipo de nota para iconos en el timeline
-	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'nota' {
+	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'abono' | 'nota' {
 		if (contenido.startsWith('[Estado]')) return 'estado'
 		if (contenido.startsWith('[Diseño]')) return 'diseno'
 		if (contenido.startsWith('[Asignación]')) return 'asignacion'
 		if (contenido.startsWith('[Edición]')) return 'edicion'
+		if (contenido.startsWith('[Abono]')) return 'abono'
 		return 'nota'
 	}
 
 	function limpiarPrefijo(contenido: string): string {
-		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición)\]\s*/, '')
+		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición|Abono)\]\s*/, '')
 	}
 </script>
 
@@ -455,10 +464,10 @@
 								<div class="relative pb-4 {esUltimo ? 'pb-0' : ''}">
 									<!-- Punto del timeline -->
 									<div class="absolute -left-6 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full
-										{tipo === 'estado' ? 'bg-blue-500/20' : tipo === 'diseno' ? 'bg-purple-500/20' : tipo === 'asignacion' ? 'bg-orange-500/20' : tipo === 'edicion' ? 'bg-yellow-500/20' : 'bg-[var(--bg-card-2)]'}
+										{tipo === 'estado' ? 'bg-blue-500/20' : tipo === 'diseno' ? 'bg-purple-500/20' : tipo === 'asignacion' ? 'bg-orange-500/20' : tipo === 'edicion' ? 'bg-yellow-500/20' : tipo === 'abono' ? 'bg-green-500/20' : 'bg-[var(--bg-card-2)]'}
 									">
 										<div class="h-1.5 w-1.5 rounded-full
-											{tipo === 'estado' ? 'bg-blue-400' : tipo === 'diseno' ? 'bg-purple-400' : tipo === 'asignacion' ? 'bg-orange-400' : tipo === 'edicion' ? 'bg-yellow-400' : 'bg-[var(--text-dim)]'}
+											{tipo === 'estado' ? 'bg-blue-400' : tipo === 'diseno' ? 'bg-purple-400' : tipo === 'asignacion' ? 'bg-orange-400' : tipo === 'edicion' ? 'bg-yellow-400' : tipo === 'abono' ? 'bg-green-400' : 'bg-[var(--text-dim)]'}
 										"></div>
 									</div>
 
@@ -470,9 +479,9 @@
 											<span>{fmtRelativa(nota.created_at)}</span>
 											{#if tipo !== 'nota'}
 												<span class="rounded px-1 py-0.5 text-[9px]
-													{tipo === 'estado' ? 'bg-blue-500/10 text-blue-400' : tipo === 'diseno' ? 'bg-purple-500/10 text-purple-400' : tipo === 'asignacion' ? 'bg-orange-500/10 text-orange-400' : 'bg-yellow-500/10 text-yellow-400'}
+													{tipo === 'estado' ? 'bg-blue-500/10 text-blue-400' : tipo === 'diseno' ? 'bg-purple-500/10 text-purple-400' : tipo === 'asignacion' ? 'bg-orange-500/10 text-orange-400' : tipo === 'edicion' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'}
 												">
-													{tipo === 'estado' ? 'Estado' : tipo === 'diseno' ? 'Diseño' : tipo === 'asignacion' ? 'Asignación' : 'Edición'}
+													{tipo === 'estado' ? 'Estado' : tipo === 'diseno' ? 'Diseño' : tipo === 'asignacion' ? 'Asignación' : tipo === 'edicion' ? 'Edición' : 'Abono'}
 												</span>
 											{/if}
 										</div>
@@ -522,6 +531,162 @@
 						<p class="mt-3 text-center text-[10px] text-[var(--text-dim)]">
 							Ganancia: {fmt(ganancia)} ({margenPct}%)
 						</p>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Abonos (admin / finanzas) -->
+			{#if puedeGestionarAbonos}
+				<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+					<div class="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+						<div>
+							<h2 class="text-sm font-medium text-[var(--text)]">Abonos</h2>
+							<p class="mt-0.5 text-[10px] text-[var(--text-dim)]">
+								{abonos.length} registrado{abonos.length === 1 ? '' : 's'} · Saldo: <span class={saldoPendiente > 0 ? 'text-red-400' : 'text-green-400'}>{fmt(saldoPendiente)}</span>
+							</p>
+						</div>
+						{#if !agregandoAbono && saldoPendiente > 0}
+							<button
+								onclick={() => { agregandoAbono = true; abonoMonto = 0; abonoConcepto = '' }}
+								class="btn-secondary flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px]"
+								title="Registrar abono"
+							>
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+								Agregar
+							</button>
+						{/if}
+					</div>
+
+					{#if agregandoAbono}
+						<form method="POST" action="?/agregarAbono" use:enhance={() => {
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									mostrarToast('Abono registrado')
+									agregandoAbono = false
+									abonoMonto = 0
+									abonoConcepto = ''
+									abonoBanco = ''
+									invalidateAll()
+								} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+									mostrarToast(result.data.error, 'error')
+								}
+							}
+						}} class="border-b border-[var(--border)] bg-[var(--bg-card-2)] px-5 py-4 space-y-3">
+							<input type="hidden" name="pedido_id" value={ped.id} />
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Monto ($) *</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
+									<input
+										type="number"
+										name="monto"
+										bind:value={abonoMonto}
+										min="1"
+										max={saldoPendiente}
+										required
+										placeholder="0"
+										class="input-field w-full !pl-8"
+									/>
+								</div>
+								<p class="mt-1 text-[10px] text-[var(--text-dim)]">
+									Máximo disponible: {fmt(saldoPendiente)}
+								</p>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Banco / Cartera</label>
+								{#if bancos.length === 0}
+									<p class="text-[10px] text-[var(--text-dim)]">
+										<a href="/bancos" class="text-[var(--brand-light)] hover:underline">Crea un banco</a> para registrar dónde llegó el pago
+									</p>
+								{:else}
+									<select name="banco_id" bind:value={abonoBanco} class="input-field w-full">
+										<option value="">Sin especificar</option>
+										{#each bancos as b}
+											<option value={b.id}>{b.nombre}</option>
+										{/each}
+									</select>
+								{/if}
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Concepto (opcional)</label>
+								<input
+									type="text"
+									name="concepto"
+									bind:value={abonoConcepto}
+									placeholder="Ej: Transferencia, efectivo, comprobante..."
+									class="input-field w-full"
+								/>
+							</div>
+							<div class="flex gap-2">
+								<button
+									type="submit"
+									disabled={abonoMonto <= 0 || abonoMonto > saldoPendiente}
+									class="btn-primary flex-1 rounded-lg py-1.5 text-sm font-medium disabled:opacity-40"
+								>Registrar</button>
+								<button
+									type="button"
+									onclick={() => { agregandoAbono = false }}
+									class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+								>Cancelar</button>
+							</div>
+						</form>
+					{/if}
+
+					{#if abonos.length === 0}
+						<div class="px-5 py-6 text-center text-xs text-[var(--text-dim)]">
+							{saldoPendiente > 0 ? 'Sin abonos registrados' : 'Pedido pagado'}
+						</div>
+					{:else}
+						<ul class="divide-y divide-[var(--border)]">
+							{#each abonos as ab (ab.id)}
+								{@const autor = (ab as any).perfiles}
+								{@const banco = (ab as any).bancos}
+								<li class="px-5 py-3">
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-medium text-green-400">+{fmt(ab.monto)}</p>
+											<p class="mt-0.5 text-xs text-[var(--text-muted)]">{ab.concepto}</p>
+											<div class="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-dim)]">
+												<span>{fmtFecha(ab.fecha)}</span>
+												{#if autor}<span>· {autor.nombre}</span>{/if}
+												{#if banco}
+													<span
+														class="rounded px-1.5 py-0.5 font-medium"
+														style="background-color: {banco.color}20; color: {banco.color}"
+													>
+														{banco.nombre}
+													</span>
+												{/if}
+											</div>
+										</div>
+										<form method="POST" action="?/eliminarAbono" use:enhance={() => {
+											return async ({ result }) => {
+												if (result.type === 'success') {
+													mostrarToast('Abono eliminado')
+													invalidateAll()
+												} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+													mostrarToast(result.data.error, 'error')
+												}
+											}
+										}}>
+											<input type="hidden" name="pedido_id" value={ped.id} />
+											<input type="hidden" name="movimiento_id" value={ab.id} />
+											<button
+												type="submit"
+												onclick={(e) => {
+													if (!confirm(`¿Eliminar abono de ${fmt(ab.monto)}?`)) e.preventDefault()
+												}}
+												class="text-[var(--text-dim)] hover:text-red-400 transition-colors"
+												title="Eliminar abono"
+												aria-label="Eliminar abono"
+											>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+											</button>
+										</form>
+									</div>
+								</li>
+							{/each}
+						</ul>
 					{/if}
 				</div>
 			{/if}
@@ -598,10 +763,6 @@
 								<input type="date" name="fecha_entrega" bind:value={editFechaEntrega} class="input-field w-full" />
 							</div>
 							<div>
-								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Abono ($)</label>
-								<input type="number" name="abono" bind:value={editAbono} min="0" class="input-field w-full" />
-							</div>
-							<div>
 								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Nota</label>
 								<textarea name="nota" bind:value={editNota} rows="2" class="input-field w-full resize-none"></textarea>
 							</div>
@@ -612,10 +773,6 @@
 							<div class="flex justify-between">
 								<dt class="text-[var(--text-muted)]">Entrega</dt>
 								<dd class="text-[var(--text)]">{ped.fecha_entrega ? fmtFecha(ped.fecha_entrega) : '—'}</dd>
-							</div>
-							<div class="flex justify-between">
-								<dt class="text-[var(--text-muted)]">Abono</dt>
-								<dd class="text-[var(--text)]">{fmt(ped.abono)}</dd>
 							</div>
 							{#if ped.nota}
 								<div>
