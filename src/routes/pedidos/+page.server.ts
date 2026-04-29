@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema, marcarDisenoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			`id, estado, precio_total, abono, saldo, fecha_entrega, nota, imagen_url, created_at,
 			 clientes(id, nombre, empresa, contacto),
 			 perfiles!pedidos_creado_por_fkey(nombre),
-			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, notas_produccion, orden)`,
+			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, diseno_completado, notas_produccion, orden)`,
 			{ count: 'exact' }
 		)
 		.order(ordenCampo, { ascending: ordenAsc, nullsFirst: false })
@@ -40,7 +40,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const desde = (pagina - 1) * porPagina
 	query = query.range(desde, desde + porPagina - 1)
 
-	const { data: pedidos, count } = await query
+	const { data: pedidos, count, error: pedidosError } = await query
+
+	if (pedidosError) {
+		console.error('[pedidos.load] Error al consultar pedidos:', pedidosError)
+	}
 
 	const filtrados = busqueda
 		? (pedidos ?? []).filter((p: any) => p.clientes !== null)
@@ -69,7 +73,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tipofecha,
 		rol,
 		userId,
-		perfiles
+		perfiles,
+		errorCarga: pedidosError?.message ?? null
 	}
 }
 
@@ -85,32 +90,40 @@ export const actions: Actions = {
 		const datos = parseForm(cambiarEstadoItemSchema, form)
 		if (esError(datos)) return datos
 
-		const { error } = await locals.supabase
+		const { data: actualizados, error } = await locals.supabase
 			.from('pedido_items')
 			.update({ estado_produccion: datos.estado })
 			.eq('id', datos.item_id)
+			.select('id')
 
 		if (error) return fail(500, { error: 'Error al actualizar estado' })
+		if (!actualizados || actualizados.length === 0) {
+			return fail(403, { error: 'No se pudo actualizar el item (permisos de base de datos)' })
+		}
 		return { success: true }
 	},
 
 	// Cambiar estado general del pedido (solo admin)
 	cambiarEstadoPedido: async ({ request, locals }) => {
 		const usuario = await locals.getUsuario()
-		if (!usuario || usuario.rol !== 'admin') {
-			return fail(403, { error: 'Solo el administrador puede cambiar el estado del pedido' })
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'fabricador')) {
+			return fail(403, { error: 'Sin permisos para cambiar el estado del pedido' })
 		}
 
 		const form = await request.formData()
 		const datos = parseForm(cambiarEstadoPedidoSchema, form)
 		if (esError(datos)) return datos
 
-		const { error } = await locals.supabase
+		const { data: actualizados, error } = await locals.supabase
 			.from('pedidos')
 			.update({ estado: datos.estado })
 			.eq('id', datos.pedido_id)
+			.select('id')
 
-		if (error) return fail(500, { error: 'Error al cambiar estado del pedido' })
+		if (error) return fail(500, { error: 'Error BD: ' + error.message })
+		if (!actualizados || actualizados.length === 0) {
+			return fail(403, { error: 'No se pudo actualizar el pedido (permisos de base de datos)' })
+		}
 
 		await registrarAudit(locals.supabase, {
 			accion: 'cambiar_estado_pedido',
@@ -161,6 +174,26 @@ export const actions: Actions = {
 			.eq('id', datos.item_id)
 
 		if (error) return fail(500, { error: 'Error al asignar' })
+		return { success: true }
+	},
+
+	// Marcar diseño como completado / pendiente (admin o diseñador asignado)
+	marcarDiseno: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
+			return fail(403, { error: 'Sin permisos para marcar diseños' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(marcarDisenoSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase
+			.from('pedido_items')
+			.update({ diseno_completado: datos.completado })
+			.eq('id', datos.item_id)
+
+		if (error) return fail(500, { error: 'Error al actualizar diseño' })
 		return { success: true }
 	},
 

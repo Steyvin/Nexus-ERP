@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte'
 	import { goto, invalidateAll } from '$app/navigation'
 	import { page } from '$app/stores'
+	import { enhance } from '$app/forms'
 	import { supabase } from '$lib/supabase'
 	import { mostrarToast } from '$lib/stores/ui'
 	import { fmt, fmtFecha, fmtRelativa } from '$lib/utils/format'
@@ -9,6 +10,12 @@
 	import type { Cliente, Cotizacion, Pedido } from '$lib/types'
 
 	let { data }: { data: PageData } = $props()
+
+	const esAdmin = $derived(data.rol === 'admin')
+
+	// Eliminar cliente
+	let eliminandoCliente = $state<string | null>(null)
+	let nombreClienteEliminar = $state('')
 
 	// ── Estado de búsqueda y filtros ──
 	let inputBusqueda = $state(data.busqueda)
@@ -425,6 +432,15 @@
 						<h3 class="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Datos de contacto</h3>
 						{#if !editando}
 							<div class="flex gap-2">
+								{#if esAdmin}
+									<button
+										onclick={() => {
+											eliminandoCliente = clienteSeleccionado?.id ?? null
+											nombreClienteEliminar = clienteSeleccionado?.nombre ?? ''
+										}}
+										class="text-xs text-red-400 hover:text-red-300"
+									>Eliminar</button>
+								{/if}
 								<button onclick={toggleActivo} class="text-xs text-[var(--text-dim)] hover:text-[var(--text)]">
 									{clienteSeleccionado.activo ? 'Desactivar' : 'Activar'}
 								</button>
@@ -562,6 +578,43 @@
 			{/if}
 		</div>
 	</aside>
+{/if}
+
+<!-- Modal: Confirmar eliminación de cliente -->
+{#if eliminandoCliente}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onclick={() => (eliminandoCliente = null)}>
+		<div class="mx-4 w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-base font-semibold text-[var(--text)]">Eliminar cliente</h3>
+			<p class="mt-2 text-sm text-[var(--text-muted)]">
+				¿Eliminar a <span class="font-medium text-[var(--text)]">{nombreClienteEliminar}</span>? Se eliminarán también sus pedidos y cotizaciones. Esta acción no se puede deshacer.
+			</p>
+			<form method="POST" action="?/eliminarCliente" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Cliente eliminado')
+						eliminandoCliente = null
+						clienteSeleccionado = null
+						invalidateAll()
+					} else if (result.type === 'failure') {
+						mostrarToast((result.data as any)?.error ?? 'Error al eliminar', 'error')
+					}
+				}
+			}}>
+				<input type="hidden" name="cliente_id" value={eliminandoCliente} />
+				<div class="mt-5 flex justify-end gap-3">
+					<button
+						type="button"
+						onclick={() => (eliminandoCliente = null)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+					>Cancelar</button>
+					<button
+						type="submit"
+						class="rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+					>Eliminar</button>
+				</div>
+			</form>
+		</div>
+	</div>
 {/if}
 
 <style>

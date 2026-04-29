@@ -22,6 +22,9 @@
 	const esDiseñador = $derived(data.rol === 'diseñador')
 	const puedeVerPrecios = $derived(esAdmin || esFinanzas)
 	const puedeEditarEstadoItems = $derived(esAdmin || esFabricador)
+	const puedeGestionarAbonos = $derived(esAdmin || esFinanzas)
+	const abonos = $derived(data.abonos ?? [])
+	const bancos = $derived(data.bancos ?? [])
 
 	// Cálculos
 	const costoFab = $derived(items.reduce((s: number, i: any) => s + Number(i.precio_fabricacion ?? 0), 0))
@@ -30,6 +33,8 @@
 	const enFabricacion = $derived(items.filter((i: any) => i.estado_produccion === 'en_fabricacion').length)
 	const pendientes = $derived(items.filter((i: any) => i.estado_produccion === 'pendiente').length)
 	const pctProgreso = $derived(items.length > 0 ? Math.round((terminados / items.length) * 100) : 0)
+	const disenosHechos = $derived(items.filter((i: any) => i.diseno_completado).length)
+	const pctDisenos = $derived(items.length > 0 ? Math.round((disenosHechos / items.length) * 100) : 0)
 	const ganancia = $derived(totalCliente - costoFab)
 	const margenPct = $derived(totalCliente > 0 ? Math.round((ganancia / totalCliente) * 100) : 0)
 
@@ -55,32 +60,38 @@
 	let nuevaNota = $state('')
 	let editandoInfo = $state(false)
 	let editFechaEntrega = $state('')
-	let editAbono = $state(0)
 	let editNota = $state('')
 
 	let anadiendoAbono = $state(false)
 	let nuevoMontoAbono = $state(0)
 
+	// Abonos
+	let agregandoAbono = $state(false)
+	let abonoMonto = $state(0)
+	let abonoConcepto = $state('')
+	let abonoBanco = $state('')
+	const saldoPendiente = $derived(Math.max(0, Number(ped.precio_total ?? 0) - Number(ped.abono ?? 0)))
+
 	// Sincroniza los campos del formulario con el pedido cuando no se está editando
 	$effect(() => {
 		if (!editandoInfo) {
 			editFechaEntrega = ped.fecha_entrega ?? ''
-			editAbono = Number(ped.abono) || 0
 			editNota = ped.nota ?? ''
 		}
 	})
 
 	// Detectar tipo de nota para iconos en el timeline
-	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'nota' {
+	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'abono' | 'nota' {
 		if (contenido.startsWith('[Estado]')) return 'estado'
 		if (contenido.startsWith('[Diseño]')) return 'diseno'
 		if (contenido.startsWith('[Asignación]')) return 'asignacion'
 		if (contenido.startsWith('[Edición]')) return 'edicion'
+		if (contenido.startsWith('[Abono]')) return 'abono'
 		return 'nota'
 	}
 
 	function limpiarPrefijo(contenido: string): string {
-		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición)\]\s*/, '')
+		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición|Abono)\]\s*/, '')
 	}
 </script>
 
@@ -108,12 +119,14 @@
 			</div>
 		</div>
 
-		{#if esAdmin}
+		{#if esAdmin || esDiseñador}
 			<form method="POST" action="?/cambiarEstadoPedido" use:enhance={() => {
 				return async ({ result }) => {
 					if (result.type === 'success') {
 						mostrarToast('Estado actualizado')
 						invalidateAll()
+					} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+						mostrarToast(result.data.error, 'error')
 					}
 				}
 			}}>
@@ -133,7 +146,7 @@
 	</div>
 
 	<!-- ═══ INFO RÁPIDA: Fechas + progreso ═══ -->
-	<div class="mt-4 grid gap-3 sm:grid-cols-3">
+	<div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 		<!-- Fecha pedido -->
 		<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
 			<p class="text-[10px] text-[var(--text-dim)]">Fecha de pedido</p>
@@ -164,6 +177,22 @@
 				{#if terminados > 0}<span class="text-green-400">{terminados} terminado{terminados > 1 ? 's' : ''}</span>{/if}
 			</div>
 		</div>
+		<!-- Diseños -->
+		<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+			<div class="flex items-center justify-between">
+				<p class="text-[10px] text-[var(--text-dim)]">Diseños</p>
+				<p class="text-[10px] font-medium {pctDisenos === 100 ? 'text-purple-400' : 'text-[var(--text-muted)]'}">{pctDisenos}%</p>
+			</div>
+			<div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[var(--bg-card-2)]">
+				<div
+					class="h-full rounded-full transition-all duration-500 {pctDisenos === 100 ? 'bg-purple-500' : 'bg-purple-400/60'}"
+					style="width: {pctDisenos}%"
+				></div>
+			</div>
+			<p class="mt-1 text-[10px] text-[var(--text-dim)]">
+				{disenosHechos}/{items.length} completado{disenosHechos === 1 ? '' : 's'}
+			</p>
+		</div>
 	</div>
 
 	<!-- ═══ CONTENIDO POR ROL ═══ -->
@@ -186,7 +215,7 @@
 							{#each items as item, idx (item.id)}
 								{@const asignado = (item as any).perfiles}
 								{@const esItemMio = esDiseñador && item.asignado_a === data.userId}
-								<div class="px-5 py-4 {esDiseñador && !esItemMio ? 'opacity-40' : ''}">
+								<div class="px-5 py-4">
 									<div class="flex flex-wrap items-start gap-3">
 										<div class="min-w-0 flex-1">
 											<!-- Badges -->
@@ -198,6 +227,12 @@
 												<span class="rounded-full border px-2 py-0.5 text-[10px] font-medium {itemEstadoColor[item.estado_produccion] ?? ''}">
 													{ESTADO_ITEM_LABEL[item.estado_produccion as EstadoItem] ?? item.estado_produccion}
 												</span>
+												{#if item.diseno_completado}
+													<span class="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/15 px-2 py-0.5 text-[10px] font-medium text-purple-400">
+														<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+														Diseñado
+													</span>
+												{/if}
 												{#if asignado}
 													<span class="text-[10px] text-[var(--text-dim)]">
 														<svg class="inline -mt-px mr-0.5" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{asignado.nombre}
@@ -263,7 +298,7 @@
 											{/if}
 
 											<!-- Diseñador / Admin: subir diseño -->
-											{#if (esDiseñador && esItemMio) || esAdmin}
+											{#if esDiseñador || esAdmin}
 												<button
 													onclick={() => { subiendoDiseno = item.id; urlDiseno = item.archivo_diseno_url ?? ''; descripcionDiseno = item.descripcion }}
 													class="btn-secondary rounded-lg px-3 py-1 text-[10px] flex items-center gap-1"
@@ -272,6 +307,35 @@
 													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 													Diseño
 												</button>
+											{/if}
+
+											<!-- Marcar diseño completado (diseñador o admin) -->
+											{#if esDiseñador || esAdmin}
+												<form method="POST" action="?/marcarDiseno" use:enhance={() => {
+													return async ({ result }) => {
+														if (result.type === 'success') {
+															mostrarToast(item.diseno_completado ? 'Diseño marcado como pendiente' : 'Diseño marcado como completado')
+															invalidateAll()
+														}
+													}
+												}}>
+													<input type="hidden" name="item_id" value={item.id} />
+													<input type="hidden" name="pedido_id" value={ped.id} />
+													<input type="hidden" name="descripcion" value={item.descripcion} />
+													<input type="hidden" name="completado" value={String(!item.diseno_completado)} />
+													<button
+														type="submit"
+														class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] transition-colors {item.diseno_completado ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--border-light)] hover:text-[var(--text)]'}"
+														title={item.diseno_completado ? 'Desmarcar diseño' : 'Marcar diseño completado'}
+													>
+														<span class="inline-flex h-3.5 w-3.5 items-center justify-center rounded border {item.diseno_completado ? 'border-purple-500 bg-purple-500 text-white' : 'border-[var(--border-light)]'}">
+															{#if item.diseno_completado}
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+															{/if}
+														</span>
+														Diseño {item.diseno_completado ? 'hecho' : 'pendiente'}
+													</button>
+												</form>
 											{/if}
 
 											<!-- Admin: asignar -->
@@ -403,10 +467,10 @@
 								<div class="relative pb-4 {esUltimo ? 'pb-0' : ''}">
 									<!-- Punto del timeline -->
 									<div class="absolute -left-6 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full
-										{tipo === 'estado' ? 'bg-blue-500/20' : tipo === 'diseno' ? 'bg-purple-500/20' : tipo === 'asignacion' ? 'bg-orange-500/20' : tipo === 'edicion' ? 'bg-yellow-500/20' : 'bg-[var(--bg-card-2)]'}
+										{tipo === 'estado' ? 'bg-blue-500/20' : tipo === 'diseno' ? 'bg-purple-500/20' : tipo === 'asignacion' ? 'bg-orange-500/20' : tipo === 'edicion' ? 'bg-yellow-500/20' : tipo === 'abono' ? 'bg-green-500/20' : 'bg-[var(--bg-card-2)]'}
 									">
 										<div class="h-1.5 w-1.5 rounded-full
-											{tipo === 'estado' ? 'bg-blue-400' : tipo === 'diseno' ? 'bg-purple-400' : tipo === 'asignacion' ? 'bg-orange-400' : tipo === 'edicion' ? 'bg-yellow-400' : 'bg-[var(--text-dim)]'}
+											{tipo === 'estado' ? 'bg-blue-400' : tipo === 'diseno' ? 'bg-purple-400' : tipo === 'asignacion' ? 'bg-orange-400' : tipo === 'edicion' ? 'bg-yellow-400' : tipo === 'abono' ? 'bg-green-400' : 'bg-[var(--text-dim)]'}
 										"></div>
 									</div>
 
@@ -418,9 +482,9 @@
 											<span>{fmtRelativa(nota.created_at)}</span>
 											{#if tipo !== 'nota'}
 												<span class="rounded px-1 py-0.5 text-[9px]
-													{tipo === 'estado' ? 'bg-blue-500/10 text-blue-400' : tipo === 'diseno' ? 'bg-purple-500/10 text-purple-400' : tipo === 'asignacion' ? 'bg-orange-500/10 text-orange-400' : 'bg-yellow-500/10 text-yellow-400'}
+													{tipo === 'estado' ? 'bg-blue-500/10 text-blue-400' : tipo === 'diseno' ? 'bg-purple-500/10 text-purple-400' : tipo === 'asignacion' ? 'bg-orange-500/10 text-orange-400' : tipo === 'edicion' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'}
 												">
-													{tipo === 'estado' ? 'Estado' : tipo === 'diseno' ? 'Diseño' : tipo === 'asignacion' ? 'Asignación' : 'Edición'}
+													{tipo === 'estado' ? 'Estado' : tipo === 'diseno' ? 'Diseño' : tipo === 'asignacion' ? 'Asignación' : tipo === 'edicion' ? 'Edición' : 'Abono'}
 												</span>
 											{/if}
 										</div>
@@ -476,6 +540,162 @@
 						<p class="mt-3 text-center text-[10px] text-[var(--text-dim)]">
 							Ganancia: {fmt(ganancia)} ({margenPct}%)
 						</p>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Abonos (admin / finanzas) -->
+			{#if puedeGestionarAbonos}
+				<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+					<div class="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+						<div>
+							<h2 class="text-sm font-medium text-[var(--text)]">Abonos</h2>
+							<p class="mt-0.5 text-[10px] text-[var(--text-dim)]">
+								{abonos.length} registrado{abonos.length === 1 ? '' : 's'} · Saldo: <span class={saldoPendiente > 0 ? 'text-red-400' : 'text-green-400'}>{fmt(saldoPendiente)}</span>
+							</p>
+						</div>
+						{#if !agregandoAbono && saldoPendiente > 0}
+							<button
+								onclick={() => { agregandoAbono = true; abonoMonto = 0; abonoConcepto = '' }}
+								class="btn-secondary flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px]"
+								title="Registrar abono"
+							>
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+								Agregar
+							</button>
+						{/if}
+					</div>
+
+					{#if agregandoAbono}
+						<form method="POST" action="?/agregarAbono" use:enhance={() => {
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									mostrarToast('Abono registrado')
+									agregandoAbono = false
+									abonoMonto = 0
+									abonoConcepto = ''
+									abonoBanco = ''
+									invalidateAll()
+								} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+									mostrarToast(result.data.error, 'error')
+								}
+							}
+						}} class="border-b border-[var(--border)] bg-[var(--bg-card-2)] px-5 py-4 space-y-3">
+							<input type="hidden" name="pedido_id" value={ped.id} />
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Monto ($) *</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
+									<input
+										type="number"
+										name="monto"
+										bind:value={abonoMonto}
+										min="1"
+										max={saldoPendiente}
+										required
+										placeholder="0"
+										class="input-field w-full !pl-8"
+									/>
+								</div>
+								<p class="mt-1 text-[10px] text-[var(--text-dim)]">
+									Máximo disponible: {fmt(saldoPendiente)}
+								</p>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Banco / Cartera</label>
+								{#if bancos.length === 0}
+									<p class="text-[10px] text-[var(--text-dim)]">
+										<a href="/bancos" class="text-[var(--brand-light)] hover:underline">Crea un banco</a> para registrar dónde llegó el pago
+									</p>
+								{:else}
+									<select name="banco_id" bind:value={abonoBanco} class="input-field w-full">
+										<option value="">Sin especificar</option>
+										{#each bancos as b}
+											<option value={b.id}>{b.nombre}</option>
+										{/each}
+									</select>
+								{/if}
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Concepto (opcional)</label>
+								<input
+									type="text"
+									name="concepto"
+									bind:value={abonoConcepto}
+									placeholder="Ej: Transferencia, efectivo, comprobante..."
+									class="input-field w-full"
+								/>
+							</div>
+							<div class="flex gap-2">
+								<button
+									type="submit"
+									disabled={abonoMonto <= 0 || abonoMonto > saldoPendiente}
+									class="btn-primary flex-1 rounded-lg py-1.5 text-sm font-medium disabled:opacity-40"
+								>Registrar</button>
+								<button
+									type="button"
+									onclick={() => { agregandoAbono = false }}
+									class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+								>Cancelar</button>
+							</div>
+						</form>
+					{/if}
+
+					{#if abonos.length === 0}
+						<div class="px-5 py-6 text-center text-xs text-[var(--text-dim)]">
+							{saldoPendiente > 0 ? 'Sin abonos registrados' : 'Pedido pagado'}
+						</div>
+					{:else}
+						<ul class="divide-y divide-[var(--border)]">
+							{#each abonos as ab (ab.id)}
+								{@const autor = (ab as any).perfiles}
+								{@const banco = (ab as any).bancos}
+								<li class="px-5 py-3">
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-medium text-green-400">+{fmt(ab.monto)}</p>
+											<p class="mt-0.5 text-xs text-[var(--text-muted)]">{ab.concepto}</p>
+											<div class="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-dim)]">
+												<span>{fmtFecha(ab.fecha)}</span>
+												{#if autor}<span>· {autor.nombre}</span>{/if}
+												{#if banco}
+													<span
+														class="rounded px-1.5 py-0.5 font-medium"
+														style="background-color: {banco.color}20; color: {banco.color}"
+													>
+														{banco.nombre}
+													</span>
+												{/if}
+											</div>
+										</div>
+										<form method="POST" action="?/eliminarAbono" use:enhance={() => {
+											return async ({ result }) => {
+												if (result.type === 'success') {
+													mostrarToast('Abono eliminado')
+													invalidateAll()
+												} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+													mostrarToast(result.data.error, 'error')
+												}
+											}
+										}}>
+											<input type="hidden" name="pedido_id" value={ped.id} />
+											<input type="hidden" name="movimiento_id" value={ab.id} />
+											<button
+												type="submit"
+												onclick={(e) => {
+													if (!confirm(`¿Eliminar abono de ${fmt(ab.monto)}?`)) e.preventDefault()
+												}}
+												class="text-[var(--text-dim)] hover:text-red-400 transition-colors"
+												title="Eliminar abono"
+												aria-label="Eliminar abono"
+											>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+											</button>
+										</form>
+									</div>
+								</li>
+							{/each}
+						</ul>
 					{/if}
 				</div>
 			{/if}
@@ -552,10 +772,6 @@
 								<input type="date" name="fecha_entrega" bind:value={editFechaEntrega} class="input-field w-full" />
 							</div>
 							<div>
-								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Abono ($)</label>
-								<input type="number" name="abono" bind:value={editAbono} min="0" class="input-field w-full" />
-							</div>
-							<div>
 								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Nota</label>
 								<textarea name="nota" bind:value={editNota} rows="2" class="input-field w-full resize-none"></textarea>
 							</div>
@@ -566,10 +782,6 @@
 							<div class="flex justify-between">
 								<dt class="text-[var(--text-muted)]">Entrega</dt>
 								<dd class="text-[var(--text)]">{ped.fecha_entrega ? fmtFecha(ped.fecha_entrega) : '—'}</dd>
-							</div>
-							<div class="flex justify-between">
-								<dt class="text-[var(--text-muted)]">Abono</dt>
-								<dd class="text-[var(--text)]">{fmt(ped.abono)}</dd>
 							</div>
 							{#if ped.nota}
 								<div>

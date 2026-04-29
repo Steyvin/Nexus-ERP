@@ -1,16 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/stores'
 	import { goto } from '$app/navigation'
-	import { iniciarSesion } from '$lib/utils/auth'
+	import { enhance } from '$app/forms'
 	import logoNexus from '$lib/assets/NEXUS.png'
 
-	let email = $state('')
+	let identificador = $state('')
 	let contrasena = $state('')
 	let error = $state<string | null>(null)
 	let cargando = $state(false)
 
 	// Si viene de una ruta protegida, redirigir ahí después del login
-	// Sanitizar: solo aceptar rutas internas (empiezan con / y no contienen //)
 	let destino = $derived.by(() => {
 		const raw = $page.url.searchParams.get('next')
 		if (raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://')) {
@@ -18,23 +17,6 @@
 		}
 		return '/dashboard'
 	})
-
-	async function handleSubmit(e: Event) {
-		e.preventDefault()
-		if (cargando) return
-
-		error = null
-		cargando = true
-
-		const err = await iniciarSesion(email, contrasena)
-
-		if (err) {
-			error = err
-			cargando = false
-		} else {
-			await goto(destino)
-		}
-	}
 </script>
 
 <svelte:head>
@@ -51,7 +33,18 @@
 
 		<!-- Card del formulario -->
 		<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6">
-			<form onsubmit={handleSubmit} class="space-y-5">
+			<form method="POST" action="?/login" use:enhance={() => {
+				cargando = true
+				error = null
+				return async ({ result }) => {
+					cargando = false
+					if (result.type === 'success') {
+						await goto(destino, { invalidateAll: true })
+					} else if (result.type === 'failure') {
+						error = (result.data as any)?.error ?? 'Error al iniciar sesion'
+					}
+				}
+			}} class="space-y-5">
 				<!-- Error -->
 				{#if error}
 					<div class="error-banner flex items-center gap-2 rounded-lg px-4 py-3 text-sm">
@@ -73,20 +66,21 @@
 					</div>
 				{/if}
 
-				<!-- Email -->
+				<!-- Email o nombre de usuario -->
 				<div>
-					<label for="email" class="mb-1.5 block text-sm font-medium text-[var(--text-muted)]"
-						>Email</label
+					<label for="identificador" class="mb-1.5 block text-sm font-medium text-[var(--text-muted)]"
+						>Email o nombre de usuario</label
 					>
 					<input
-						id="email"
-						type="email"
-						bind:value={email}
+						id="identificador"
+						type="text"
+						name="identificador"
+						bind:value={identificador}
 						required
 						disabled={cargando}
-						autocomplete="email"
+						autocomplete="username"
 						class="login-input w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none transition-all placeholder:text-[var(--text-dim)]"
-						placeholder="tu@email.com"
+						placeholder="tu@email.com o usuario"
 					/>
 				</div>
 
@@ -98,6 +92,7 @@
 					<input
 						id="password"
 						type="password"
+						name="contrasena"
 						bind:value={contrasena}
 						required
 						disabled={cargando}

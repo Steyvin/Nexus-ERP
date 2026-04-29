@@ -56,7 +56,8 @@ create type tipo_producto as enum (
   'neon',             -- Neon Flex (precios fijos)
   'vinilo',           -- Vinilo adhesivo (precio por m²)
   'acrilio',          -- Acrílico sin faja
-  'acrilio_circular'  -- Acrílico circular (diámetros fijos)
+  'acrilio_circular', -- Acrílico circular (diámetros fijos)
+  'unico'             -- Producto único / personalizado (precio manual)
 );
 
 -- Tipos de movimiento financiero
@@ -200,6 +201,7 @@ create table public.pedido_items (
   estado_produccion    estado_item   not null default 'pendiente',
   asignado_a           uuid          references public.perfiles(id) on delete set null,
   archivo_diseno_url   text,         -- URL del archivo subido por diseñador
+  diseno_completado    boolean       not null default false, -- Diseñador marca cuando termina el diseño
   notas_produccion     text,
   orden                smallint      not null default 0,
   updated_at           timestamptz   not null default now(),
@@ -540,6 +542,13 @@ create policy "pedidos: admin y finanzas ven todo"
 create policy "pedidos: fabricador ve"
   on public.pedidos for select
   using (public.es_rol('fabricador'));
+
+-- Fabricadores pueden actualizar el estado del pedido (ej: Terminado, Entregado).
+-- La restricción a solo el campo `estado` se aplica en el server action.
+create policy "pedidos: fabricador actualiza estado"
+  on public.pedidos for update
+  using (public.es_rol('fabricador'))
+  with check (public.es_rol('fabricador'));
 
 -- Diseñadores ven pedidos que tienen items asignados a ellos
 create policy "pedidos: diseñador ve asignados"

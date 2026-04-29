@@ -3,6 +3,14 @@
 	import { sidebarAbierta } from '$lib/stores/ui'
 	import { cerrarSesion } from '$lib/utils/auth'
 	import { ROL_LABEL } from '$lib/types'
+	import type { Rol } from '$lib/types'
+
+	const rolColor: Record<Rol, string> = {
+		admin:      'bg-purple-500/15 text-purple-400 border-purple-500/30',
+		fabricador: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+		diseñador:  'bg-orange-500/15 text-orange-400 border-orange-500/30',
+		finanzas:   'bg-green-500/15 text-green-400 border-green-500/30'
+	}
 
 	let cerrando = $state(false)
 
@@ -35,9 +43,6 @@
 		<div class="flex items-center gap-3">
 			<div class="hidden items-center gap-2 sm:flex">
 				<span class="text-sm text-[var(--text)]">{$usuario.nombre}</span>
-				<span class="rounded bg-[var(--border-light)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">
-					{ROL_LABEL[$usuario.rol] ?? $usuario.rol}
-				</span>
 			</div>
 			<button
 				onclick={handleLogout}

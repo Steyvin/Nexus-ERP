@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [perfilesRes, authUsersRes] = await Promise.all([
 		locals.supabase
 			.from('perfiles')
-			.select('id, nombre, rol, activo, ultimo_acceso, created_at')
+			.select('id, nombre, username, rol, activo, ultimo_acceso, created_at')
 			.order('created_at', { ascending: true }),
 
 		supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
@@ -74,11 +74,26 @@ export const actions: Actions = {
 			return fail(400, { error: mensaje })
 		}
 
-		// Actualizar el rol en perfiles
+		// Actualizar el rol y username en perfiles
 		if (newUser?.user) {
+			const updateData: Record<string, unknown> = { rol: datos.rol }
+			const username = datos.username?.trim().toLowerCase()
+			if (username) {
+				// Verificar que no exista
+				const { data: existe } = await supabaseAdmin
+					.from('perfiles')
+					.select('id')
+					.eq('username', username)
+					.single()
+				if (existe) {
+					return fail(400, { error: `El nombre de usuario "${username}" ya está en uso` })
+				}
+				updateData.username = username
+			}
+
 			const { error: updateError } = await supabaseAdmin
 				.from('perfiles')
-				.update({ rol: datos.rol })
+				.update(updateData)
 				.eq('id', newUser.user.id)
 
 			if (updateError) {
