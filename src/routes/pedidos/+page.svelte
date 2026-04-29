@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation'
-	import { page } from '$app/stores'
+	import { page, navigating } from '$app/stores'
+	import { fade } from 'svelte/transition'
 	import { enhance } from '$app/forms'
 	import { fmt, fmtFecha, fmtRelativa } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
@@ -25,6 +26,11 @@
 	let urlDiseno = $state('')
 
 	let busquedaLocal = $state(data.busqueda ?? '')
+	let fechaDesde = $state(data.fechaDesde ?? '')
+	let fechaHasta = $state(data.fechaHasta ?? '')
+	let tipofecha = $state(data.tipofecha ?? 'created_at')
+	let mostrarFechas = $state(!!(data.fechaDesde || data.fechaHasta))
+	let modoPersonalizado = $state(!!(data.fechaDesde || data.fechaHasta))
 
 	// ── Filtros de estado según rol ──
 	const filtrosEstado = $derived.by(() => {
@@ -78,6 +84,71 @@
 		aplicarParams({ q: busquedaLocal.trim() || null })
 	}
 
+	function isoLocal(d: Date): string {
+		const y = d.getFullYear()
+		const m = String(d.getMonth() + 1).padStart(2, '0')
+		const day = String(d.getDate()).padStart(2, '0')
+		return `${y}-${m}-${day}`
+	}
+
+	function isoHoy(): string {
+		return isoLocal(new Date())
+	}
+
+	function isoLunes(): string {
+		const d = new Date()
+		const diff = d.getDay() === 0 ? -6 : 1 - d.getDay()
+		d.setDate(d.getDate() + diff)
+		return isoLocal(d)
+	}
+
+	function isoDomingo(): string {
+		const d = new Date()
+		const diff = d.getDay() === 0 ? 0 : 7 - d.getDay()
+		d.setDate(d.getDate() + diff)
+		return isoLocal(d)
+	}
+
+	function isoInicioMes(): string {
+		const d = new Date(); d.setDate(1); return isoLocal(d)
+	}
+
+	function isoFinMes(): string {
+		const d = new Date(); d.setMonth(d.getMonth() + 1, 0); return isoLocal(d)
+	}
+
+	function aplicarHoy() {
+		const d = isoHoy()
+		fechaDesde = d; fechaHasta = d
+		modoPersonalizado = false
+		aplicarParams({ desde: d, hasta: d, tipofecha: 'created_at' })
+	}
+
+	function aplicarSemana() {
+		const desde = isoLunes(); const hasta = isoDomingo()
+		fechaDesde = desde; fechaHasta = hasta
+		modoPersonalizado = false
+		aplicarParams({ desde, hasta, tipofecha: 'created_at' })
+	}
+
+	function aplicarMes() {
+		const desde = isoInicioMes(); const hasta = isoFinMes()
+		fechaDesde = desde; fechaHasta = hasta
+		modoPersonalizado = false
+		aplicarParams({ desde, hasta, tipofecha: 'created_at' })
+	}
+
+	function aplicarPersonalizado() {
+		aplicarParams({ desde: fechaDesde || null, hasta: fechaHasta || null, tipofecha })
+	}
+
+	function limpiarFechas() {
+		fechaDesde = ''; fechaHasta = ''
+		modoPersonalizado = false
+		mostrarFechas = false
+		aplicarParams({ desde: null, hasta: null })
+	}
+
 	function irPagina(p: number) {
 		const params = new URLSearchParams($page.url.searchParams)
 		if (p > 1) params.set('p', String(p))
@@ -123,12 +194,21 @@
 				{/if}
 			</p>
 		</div>
+		{#if esAdmin || esDiseñador || esFinanzas}
+			<a
+				href="/cotizaciones/nueva"
+				class="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
+			>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+				Nuevo pedido
+			</a>
+		{/if}
 	</div>
 
 	<!-- Búsqueda y filtros -->
 	<div class="mt-4 space-y-3">
-		{#if esAdmin || esFinanzas}
-			<div class="flex gap-2">
+		<div class="flex gap-2">
+			{#if esAdmin || esFinanzas}
 				<div class="relative flex-1">
 					<svg class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 					<input
@@ -140,6 +220,68 @@
 					/>
 				</div>
 				<button onclick={buscar} class="btn-secondary rounded-lg px-4 py-2 text-sm">Buscar</button>
+			{/if}
+			<button
+				onclick={() => (mostrarFechas = !mostrarFechas)}
+				class="btn-secondary rounded-lg px-3 py-2 text-sm"
+				class:filtro-activo={mostrarFechas || !!(data.fechaDesde || data.fechaHasta)}
+				title="Filtrar por fecha"
+			>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+			</button>
+		</div>
+
+		{#if mostrarFechas}
+			<div class="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3 space-y-3">
+				<!-- Botones de acceso rápido — siempre filtran por fecha de creación del pedido -->
+				<div class="flex flex-wrap gap-2">
+					<button
+						onclick={aplicarHoy}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoHoy() && data.fechaHasta === isoHoy() && data.tipofecha === 'created_at'}
+					>Hoy</button>
+					<button
+						onclick={aplicarSemana}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoLunes() && data.fechaHasta === isoDomingo() && data.tipofecha === 'created_at'}
+					>Esta semana</button>
+					<button
+						onclick={aplicarMes}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoInicioMes() && data.fechaHasta === isoFinMes() && data.tipofecha === 'created_at'}
+					>Este mes</button>
+					<button
+						onclick={() => { modoPersonalizado = !modoPersonalizado }}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={modoPersonalizado}
+					>Personalizado</button>
+				</div>
+
+				<!-- Calendarios + tipo (solo en modo personalizado) -->
+				{#if modoPersonalizado}
+					<div class="flex flex-wrap items-end gap-3">
+						<div>
+							<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Filtrar por</label>
+							<select bind:value={tipofecha} class="input-field text-sm">
+								<option value="created_at">Fecha de pedido</option>
+								<option value="fecha_entrega">Fecha de entrega</option>
+							</select>
+						</div>
+						<div>
+							<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Desde</label>
+							<input type="date" bind:value={fechaDesde} class="input-field text-sm" />
+						</div>
+						<div>
+							<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Hasta</label>
+							<input type="date" bind:value={fechaHasta} class="input-field text-sm" />
+						</div>
+						<button onclick={aplicarPersonalizado} class="btn-primary rounded-lg px-4 py-2 text-sm">Aplicar</button>
+					</div>
+				{/if}
+
+				{#if data.fechaDesde || data.fechaHasta}
+					<button onclick={limpiarFechas} class="text-xs text-[var(--text-dim)] hover:text-[var(--text)]">Limpiar filtro de fecha</button>
+				{/if}
 			</div>
 		{/if}
 
@@ -156,8 +298,16 @@
 		</div>
 	</div>
 
+	<!-- Barra de carga -->
+	<div class="mt-3 h-0.5 overflow-hidden rounded-full">
+		{#if $navigating}
+			<div class="h-full w-full animate-[carga_1.2s_ease-in-out_infinite] bg-[var(--brand)]"></div>
+		{/if}
+	</div>
+
 	<!-- Lista de pedidos -->
-	<div class="mt-4 space-y-3">
+	{#key data.pedidos}
+	<div class="mt-3 space-y-3" in:fade={{ duration: 180 }}>
 		{#if data.pedidos.length === 0}
 			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-16 text-center text-sm text-[var(--text-dim)]">
 				No hay pedidos{data.filtroEstado ? ` con estado "${data.filtroEstado}"` : ''}{data.busqueda ? ` para "${data.busqueda}"` : ''}
@@ -444,6 +594,7 @@
 			</div>
 		</div>
 	{/if}
+{/key}
 </div>
 
 <!-- Modal: Confirmar eliminación de pedido -->
@@ -611,5 +762,11 @@
 	.pag-btn:disabled {
 		opacity: 0.3;
 		cursor: not-allowed;
+	}
+
+	@keyframes carga {
+		0%   { transform: translateX(-100%); }
+		50%  { transform: translateX(0%); }
+		100% { transform: translateX(100%); }
 	}
 </style>

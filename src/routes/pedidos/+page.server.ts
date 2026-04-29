@@ -11,6 +11,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const filtroEstado = url.searchParams.get('estado')
 	const busqueda = url.searchParams.get('q')?.trim() || ''
+	const fechaDesde = url.searchParams.get('desde')
+	const fechaHasta = url.searchParams.get('hasta')
+	const tipofecha = url.searchParams.get('tipofecha') === 'fecha_entrega' ? 'fecha_entrega' : 'created_at'
 	const pagina = Math.max(1, Number(url.searchParams.get('p')) || 1)
 	const porPagina = 20
 
@@ -31,6 +34,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	if (filtroEstado) query = query.eq('estado', filtroEstado)
 	if (busqueda) query = query.ilike('clientes.nombre', `%${busqueda}%`)
+	if (fechaDesde) query = query.gte(tipofecha, fechaDesde)
+	if (fechaHasta) query = query.lte(tipofecha, `${fechaHasta}T23:59:59`)
 
 	const desde = (pagina - 1) * porPagina
 	query = query.range(desde, desde + porPagina - 1)
@@ -59,6 +64,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		porPagina,
 		filtroEstado,
 		busqueda,
+		fechaDesde,
+		fechaHasta,
+		tipofecha,
 		rol,
 		userId,
 		perfiles

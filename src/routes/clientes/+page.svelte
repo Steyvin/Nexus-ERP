@@ -103,7 +103,7 @@
 				.limit(10),
 			supabase
 				.from('pedidos')
-				.select('id, estado, precio_total, created_at')
+				.select('id, estado, precio_total, abono, created_at')
 				.eq('cliente_id', cliente.id)
 				.order('created_at', { ascending: false })
 				.limit(10)
@@ -265,8 +265,8 @@
 				<thead>
 					<tr class="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
 						<th class="px-4 py-3 font-medium">Nombre</th>
-						<th class="hidden px-4 py-3 font-medium sm:table-cell">Empresa</th>
-						<th class="hidden px-4 py-3 font-medium md:table-cell">Ciudad</th>
+						<th class="px-4 py-3 font-medium text-right">Total comprado</th>
+						<th class="px-4 py-3 font-medium text-right">Deuda</th>
 						<th class="hidden px-4 py-3 font-medium lg:table-cell">Contacto</th>
 						<th class="px-4 py-3 font-medium">Estado</th>
 						<th class="hidden px-4 py-3 font-medium sm:table-cell">Creado</th>
@@ -285,8 +285,8 @@
 									<p class="text-xs text-[var(--text-dim)]">{cliente.email}</p>
 								{/if}
 							</td>
-							<td class="hidden px-4 py-3 text-[var(--text-muted)] sm:table-cell">{cliente.empresa ?? '—'}</td>
-							<td class="hidden px-4 py-3 text-[var(--text-muted)] md:table-cell">{cliente.ciudad ?? '—'}</td>
+							<td class="px-4 py-3 text-right font-medium text-[var(--text)]">{fmt((cliente as any)._total_comprado)}</td>
+							<td class="px-4 py-3 text-right font-medium {(cliente as any)._deuda > 0 ? 'text-red-400' : 'text-green-400'}">{fmt((cliente as any)._deuda)}</td>
 							<td class="hidden px-4 py-3 text-[var(--text-muted)] lg:table-cell">{cliente.contacto ?? '—'}</td>
 							<td class="px-4 py-3">
 								<span class="rounded-full px-2 py-0.5 text-[10px] font-medium {cliente.activo ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}">
@@ -512,15 +512,23 @@
 					{:else}
 						<ul class="space-y-1">
 							{#each pedidosCliente as pedido}
+								{@const deudaPed = Number(pedido.precio_total || 0) - Number((pedido as any).abono || 0)}
 								<li>
 									<a href="/pedidos/{pedido.id}" class="pedido-row flex items-center justify-between rounded-lg px-3 py-2 transition-colors">
 										<div>
-											<p class="text-sm text-[var(--text)]">{fmt(pedido.precio_total)}</p>
+											<p class="text-sm font-medium text-[var(--text)]">{fmt(pedido.precio_total)}</p>
 											<p class="text-[10px] text-[var(--text-dim)]">{fmtRelativa(pedido.created_at)}</p>
 										</div>
-										<span class="rounded-full px-2 py-0.5 text-[10px] font-medium {estadoPedColor[pedido.estado] ?? 'bg-gray-500/15 text-gray-400'}">
-											{pedido.estado}
-										</span>
+										<div class="flex flex-col items-end">
+											<span class="rounded-full px-2 py-0.5 text-[10px] font-medium {estadoPedColor[pedido.estado] ?? 'bg-gray-500/15 text-gray-400'}">
+												{pedido.estado}
+											</span>
+											{#if deudaPed > 0}
+												<span class="mt-1 text-[10px] font-medium text-red-400">Deuda: {fmt(deudaPed)}</span>
+											{:else}
+												<span class="mt-1 text-[10px] font-medium text-green-400">Pagado</span>
+											{/if}
+										</div>
 									</a>
 								</li>
 							{/each}

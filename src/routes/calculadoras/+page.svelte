@@ -32,15 +32,16 @@
 	let { data }: { data: PageData } = $props()
 
 	// ── Tabs ──
-	const tabs: { tipo: TipoProducto; label: string; icon: string; desc: string }[] = [
+	const tabs: { tipo: TipoProducto | 'manual'; label: string; icon: string; desc: string }[] = [
 		{ tipo: 'nube', label: 'Aviso Nube', icon: '☁️', desc: 'Figura rectangular continua' },
 		{ tipo: 'letra', label: 'Letra por Letra', icon: '🔤', desc: 'Letras individuales' },
 		{ tipo: 'neon', label: 'Neon Flex', icon: '💡', desc: 'Letrero luminoso neon' },
 		{ tipo: 'vinilo', label: 'Vinilo', icon: '🖼️', desc: 'Aplicación por m²' },
 		{ tipo: 'acrilio', label: 'Acrílico', icon: '🔶', desc: 'Base, apliques y LED' },
-		{ tipo: 'acrilio_circular', label: 'Circular', icon: '⚪', desc: 'Aviso redondo' }
+		{ tipo: 'acrilio_circular', label: 'Circular', icon: '⚪', desc: 'Aviso redondo' },
+		{ tipo: 'manual', label: 'Manual', icon: '✍️', desc: 'Ingreso manual' }
 	]
-	let tabActiva = $state<TipoProducto>('nube')
+	let tabActiva = $state<TipoProducto | 'manual'>('nube')
 
 	// ── Inputs por calculadora ──
 	let nube = $state({
@@ -137,6 +138,13 @@
 		cantidad_pedazos: 1,
 		pedazos: [{ ancho_cm: 100, alto_cm: 100 }],
 		con_instalacion: false
+	})
+
+	let manual = $state<{ tipo: TipoProducto | 'otro', descripcion: string, costo_fabricacion: number, precio_cliente: number }>({
+		tipo: 'nube',
+		descripcion: '',
+		costo_fabricacion: 0,
+		precio_cliente: 0
 	})
 
 	// Sincronizar cantidad de pedazos de vinilo
@@ -1224,6 +1232,51 @@
 						</div>
 					</div>
 				</div>
+
+			{:else if tabActiva === 'manual'}
+				<div class="section-card">
+					<div class="sc-header">
+						<div class="sc-icon">✍️</div>
+						<div class="sc-texts">
+							<h3 class="sc-title">Ingreso Manual</h3>
+							<p class="sc-desc">Especifica los detalles del producto manualmente</p>
+						</div>
+					</div>
+					<div class="sc-content">
+						<div>
+							<label class="label-field">Tipo de producto</label>
+							<select bind:value={manual.tipo} class="input-calc">
+								<option value="nube">Aviso Nube</option>
+								<option value="letra">Letra por Letra</option>
+								<option value="neon">Neon Flex</option>
+								<option value="vinilo">Vinilo</option>
+								<option value="acrilio">Acrílico</option>
+								<option value="acrilio_circular">Circular</option>
+								<option value="otro">Otro</option>
+							</select>
+						</div>
+						<div>
+							<label class="label-field">Descripción detallada</label>
+							<textarea bind:value={manual.descripcion} rows="3" class="input-calc resize-none" placeholder="Ej: Letrero en PVC con pintura acrílica..."></textarea>
+						</div>
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="label-field">Costo de fabricación ($)</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]">$</span>
+									<input type="number" bind:value={manual.costo_fabricacion} class="input-calc pl-7" min="0" />
+								</div>
+							</div>
+							<div>
+								<label class="label-field">Precio al cliente ($)</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]">$</span>
+									<input type="number" bind:value={manual.precio_cliente} class="input-calc pl-7" min="0" />
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 			{/if}
 		</div>
 
@@ -1238,7 +1291,36 @@
 					</div>
 				</div>
 
-				{#if !resultado}
+				{#if tabActiva === 'manual'}
+					<div class="precio-cliente-panel mt-5 relative z-10">
+						<div class="pc-label font-rajdhani">Valor del producto</div>
+						<div class="pc-monto font-rajdhani">{fmt(manual.precio_cliente)}</div>
+						
+						<button
+							onclick={() => {
+								if (!manual.descripcion.trim()) return mostrarToast('Ingresa una descripción', 'error')
+								if (manual.precio_cliente <= 0) return mostrarToast('Ingresa un precio válido', 'error')
+								
+								agregarItem({
+									tipo: manual.tipo === 'otro' ? 'nube' : manual.tipo,
+									tipo_label: manual.tipo === 'otro' ? 'Otro' : TIPO_LABEL[manual.tipo],
+									descripcion: manual.descripcion.trim(),
+									precio_fabricacion: Math.round(manual.costo_fabricacion),
+									precio_cliente: Math.round(manual.precio_cliente),
+									parametros: { desglose: [{ concepto: 'Ingreso manual', valor: manual.precio_cliente }] }
+								})
+								mostrarToast('Producto manual agregado al carrito')
+								manual.descripcion = ''
+								manual.costo_fabricacion = 0
+								manual.precio_cliente = 0
+							}}
+							class="btn-modern w-full"
+						>
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+							Agregar al carrito
+						</button>
+					</div>
+				{:else if !resultado}
 					<p class="py-8 text-center text-sm text-[var(--text-dim)] relative z-10">
 						No hay parámetros configurados para este producto.
 						<a href="/configuracion/catalogo" class="text-[var(--brand-light)] hover:underline">Configurar</a>

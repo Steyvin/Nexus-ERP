@@ -83,6 +83,11 @@ export const actualizarPedidoSchema = z.object({
 	nota: textoOpcional
 })
 
+export const añadirAbonoSchema = z.object({
+	pedido_id: uuid,
+	monto: numeroPositivo
+})
+
 // ── Schemas para Pedidos [id] (con campos extra para timeline) ────────────────
 
 export const cambiarEstadoItemDetalleSchema = cambiarEstadoItemSchema.extend({

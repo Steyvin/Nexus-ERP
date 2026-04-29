@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
-	import { page } from '$app/stores'
+	import { page, navigating } from '$app/stores'
+	import { fade } from 'svelte/transition'
 	import { totalItems } from '$lib/stores/carrito'
 	import { fmt, fmtRelativa } from '$lib/utils/format'
 	import type { PageData } from './$types'
@@ -13,6 +14,7 @@
 		{ val: null, label: 'Todas' },
 		{ val: 'pendiente', label: 'Pendientes' },
 		{ val: 'aprobada', label: 'Aprobadas' },
+		{ val: 'convertida', label: 'Convertidas' },
 		{ val: 'cancelada', label: 'Canceladas' }
 	]
 
@@ -32,6 +34,7 @@
 	let fechaDesde = $state(data.fechaDesde ?? '')
 	let fechaHasta = $state(data.fechaHasta ?? '')
 	let mostrarFechas = $state(!!(data.fechaDesde || data.fechaHasta))
+	let modoPersonalizado = $state(!!(data.fechaDesde || data.fechaHasta))
 
 	function aplicarParams(overrides: Record<string, string | null>) {
 		const params = new URLSearchParams($page.url.searchParams)
@@ -51,13 +54,67 @@
 		aplicarParams({ q: busquedaLocal.trim() || null })
 	}
 
-	function filtrarFechas() {
+	function isoLocal(d: Date): string {
+		const y = d.getFullYear()
+		const m = String(d.getMonth() + 1).padStart(2, '0')
+		const day = String(d.getDate()).padStart(2, '0')
+		return `${y}-${m}-${day}`
+	}
+
+	function isoHoy(): string {
+		return isoLocal(new Date())
+	}
+
+	function isoLunes(): string {
+		const d = new Date()
+		const diff = d.getDay() === 0 ? -6 : 1 - d.getDay()
+		d.setDate(d.getDate() + diff)
+		return isoLocal(d)
+	}
+
+	function isoDomingo(): string {
+		const d = new Date()
+		const diff = d.getDay() === 0 ? 0 : 7 - d.getDay()
+		d.setDate(d.getDate() + diff)
+		return isoLocal(d)
+	}
+
+	function isoInicioMes(): string {
+		const d = new Date(); d.setDate(1); return isoLocal(d)
+	}
+
+	function isoFinMes(): string {
+		const d = new Date(); d.setMonth(d.getMonth() + 1, 0); return isoLocal(d)
+	}
+
+	function aplicarHoy() {
+		const d = isoHoy()
+		fechaDesde = d; fechaHasta = d
+		modoPersonalizado = false
+		aplicarParams({ desde: d, hasta: d })
+	}
+
+	function aplicarSemana() {
+		const desde = isoLunes(); const hasta = isoDomingo()
+		fechaDesde = desde; fechaHasta = hasta
+		modoPersonalizado = false
+		aplicarParams({ desde, hasta })
+	}
+
+	function aplicarMes() {
+		const desde = isoInicioMes(); const hasta = isoFinMes()
+		fechaDesde = desde; fechaHasta = hasta
+		modoPersonalizado = false
+		aplicarParams({ desde, hasta })
+	}
+
+	function aplicarPersonalizado() {
 		aplicarParams({ desde: fechaDesde || null, hasta: fechaHasta || null })
 	}
 
 	function limpiarFechas() {
-		fechaDesde = ''
-		fechaHasta = ''
+		fechaDesde = ''; fechaHasta = ''
+		modoPersonalizado = false
 		mostrarFechas = false
 		aplicarParams({ desde: null, hasta: null })
 	}
@@ -124,18 +181,48 @@
 
 		<!-- Filtro de fechas (colapsable) -->
 		{#if mostrarFechas}
-			<div class="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3">
-				<div>
-					<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Desde</label>
-					<input type="date" bind:value={fechaDesde} class="input-field text-sm" />
+			<div class="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3 space-y-3">
+				<!-- Botones de acceso rápido -->
+				<div class="flex flex-wrap gap-2">
+					<button
+						onclick={aplicarHoy}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoHoy() && data.fechaHasta === isoHoy()}
+					>Hoy</button>
+					<button
+						onclick={aplicarSemana}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoLunes() && data.fechaHasta === isoDomingo()}
+					>Esta semana</button>
+					<button
+						onclick={aplicarMes}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={data.fechaDesde === isoInicioMes() && data.fechaHasta === isoFinMes()}
+					>Este mes</button>
+					<button
+						onclick={() => { modoPersonalizado = !modoPersonalizado }}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text)] transition-colors"
+						class:filtro-activo={modoPersonalizado}
+					>Personalizado</button>
 				</div>
-				<div>
-					<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Hasta</label>
-					<input type="date" bind:value={fechaHasta} class="input-field text-sm" />
-				</div>
-				<button onclick={filtrarFechas} class="btn-primary rounded-lg px-4 py-2 text-sm">Aplicar</button>
+
+				<!-- Calendarios (solo en modo personalizado) -->
+				{#if modoPersonalizado}
+					<div class="flex flex-wrap items-end gap-3">
+						<div>
+							<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Desde</label>
+							<input type="date" bind:value={fechaDesde} class="input-field text-sm" />
+						</div>
+						<div>
+							<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Hasta</label>
+							<input type="date" bind:value={fechaHasta} class="input-field text-sm" />
+						</div>
+						<button onclick={aplicarPersonalizado} class="btn-primary rounded-lg px-4 py-2 text-sm">Aplicar</button>
+					</div>
+				{/if}
+
 				{#if data.fechaDesde || data.fechaHasta}
-					<button onclick={limpiarFechas} class="text-xs text-[var(--text-dim)] hover:text-[var(--text)]">Limpiar</button>
+					<button onclick={limpiarFechas} class="text-xs text-[var(--text-dim)] hover:text-[var(--text)]">Limpiar filtro de fecha</button>
 				{/if}
 			</div>
 		{/if}
@@ -154,8 +241,17 @@
 		</div>
 	</div>
 
+	<!-- Barra de carga -->
+	<div class="mt-3 h-0.5 overflow-hidden rounded-full">
+		{#if $navigating}
+			<div class="h-full w-full animate-[carga_1.2s_ease-in-out_infinite] bg-[var(--brand)]"></div>
+		{/if}
+	</div>
+
 	<!-- Lista -->
-	<div class="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+	{#key data.cotizaciones}
+	<div in:fade={{ duration: 180 }}>
+	<div class="mt-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
 		{#if data.cotizaciones.length === 0}
 			<div class="py-16 text-center text-sm text-[var(--text-dim)]">
 				No hay cotizaciones{data.filtroEstado ? ' con ese estado' : ''}{data.busqueda ? ` para "${data.busqueda}"` : ''}
@@ -255,6 +351,8 @@
 		</div>
 	{/if}
 </div>
+{/key}
+</div>
 
 <style>
 	.btn-primary {
@@ -324,5 +422,11 @@
 	.pag-btn:disabled {
 		opacity: 0.3;
 		cursor: not-allowed;
+	}
+
+	@keyframes carga {
+		0%   { transform: translateX(-100%); }
+		50%  { transform: translateX(0%); }
+		100% { transform: translateX(100%); }
 	}
 </style>

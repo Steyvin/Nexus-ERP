@@ -58,6 +58,9 @@
 	let editAbono = $state(0)
 	let editNota = $state('')
 
+	let anadiendoAbono = $state(false)
+	let nuevoMontoAbono = $state(0)
+
 	// Sincroniza los campos del formulario con el pedido cuando no se está editando
 	$effect(() => {
 		if (!editandoInfo) {
@@ -463,6 +466,12 @@
 						</span>
 					</div>
 
+					{#if Number(ped.saldo) > 0 && puedeVerPrecios}
+						<button onclick={() => { anadiendoAbono = true; nuevoMontoAbono = 0 }} class="mt-3 w-full btn-secondary rounded-lg py-1.5 text-xs font-medium">
+							Añadir abono
+						</button>
+					{/if}
+
 					{#if totalCliente > 0}
 						<p class="mt-3 text-center text-[10px] text-[var(--text-dim)]">
 							Ganancia: {fmt(ganancia)} ({margenPct}%)
@@ -653,6 +662,41 @@
 						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
 					>Cancelar</button>
 					<button type="submit" disabled={!urlDiseno} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-40">Guardar</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal: Añadir Abono -->
+{#if anadiendoAbono}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (anadiendoAbono = false)}>
+		<div class="mx-4 w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-semibold text-[var(--text)]">Añadir abono</h3>
+			<p class="mt-1 text-xs text-[var(--text-muted)]">Ingresa el monto adicional a abonar al pedido.</p>
+
+			<form method="POST" action="?/añadirAbono" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Abono registrado correctamente')
+						anadiendoAbono = false
+						invalidateAll()
+					}
+				}
+			}}>
+				<input type="hidden" name="pedido_id" value={ped.id} />
+				<div class="mt-4">
+					<label class="mb-1 block text-xs font-medium text-[var(--text-muted)]">Monto a abonar</label>
+					<div class="relative">
+						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]">$</span>
+						<input type="number" name="monto" bind:value={nuevoMontoAbono} min="1" max={ped.saldo} class="input-field w-full pl-7" required />
+					</div>
+				</div>
+				<div class="mt-5 flex justify-end gap-3">
+					<button type="button" onclick={() => (anadiendoAbono = false)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+					>Cancelar</button>
+					<button type="submit" disabled={!nuevoMontoAbono || nuevoMontoAbono <= 0} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-40">Registrar abono</button>
 				</div>
 			</form>
 		</div>

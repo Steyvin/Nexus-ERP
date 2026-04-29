@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, añadirAbonoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -250,6 +250,56 @@ export const actions: Actions = {
 			usuario_id: usuario.id,
 			usuario_nombre: usuario.nombre,
 			detalles: { abono: datos.abono, fecha_entrega: datos.fecha_entrega }
+		})
+
+		return { success: true }
+	},
+
+	// Añadir abono parcial (admin o finanzas)
+	añadirAbono: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Solo admin y finanzas pueden añadir abonos' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(añadirAbonoSchema, form)
+		if (esError(datos)) return datos
+
+		if (datos.monto <= 0) return fail(400, { error: 'El monto debe ser mayor a 0' })
+
+		// Get current abono
+		const { data: pedido, error: errPed } = await locals.supabase
+			.from('pedidos')
+			.select('abono')
+			.eq('id', datos.pedido_id)
+			.single()
+
+		if (errPed || !pedido) return fail(404, { error: 'Pedido no encontrado' })
+
+		const nuevoAbono = Number(pedido.abono || 0) + datos.monto
+
+		const { error } = await locals.supabase
+			.from('pedidos')
+			.update({ abono: nuevoAbono })
+			.eq('id', datos.pedido_id)
+
+		if (error) return fail(500, { error: 'Error al añadir abono' })
+
+		await registrarCambio(
+			locals.supabase,
+			datos.pedido_id,
+			usuario.id,
+			`[Edición] Se añadió un abono de $${datos.monto}`
+		)
+
+		await registrarAudit(locals.supabase, {
+			accion: 'anadir_abono',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { monto_añadido: datos.monto, abono_anterior: pedido.abono, nuevo_abono: nuevoAbono }
 		})
 
 		return { success: true }
