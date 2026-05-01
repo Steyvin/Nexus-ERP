@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [{ data: clientes }, bancosRes] = await Promise.all([
 		locals.supabase
 			.from('clientes')
-			.select('id, nombre, empresa')
+			.select('id, nombre, empresa, contacto')
 			.eq('activo', true)
 			.order('nombre'),
 		rol === 'admin' || rol === 'finanzas'

@@ -38,6 +38,28 @@
 	let nuevoContacto = $state('')
 	let guardandoCliente = $state(false)
 
+	// ── Búsqueda de cliente existente ──
+	let busquedaCliente = $state('')
+	let mostrarResultados = $state(false)
+
+	let clienteSeleccionado = $derived(data.clientes.find(c => c.id === clienteId) ?? null)
+
+	let clientesFiltrados = $derived((() => {
+		const q = busquedaCliente.toLowerCase().trim()
+		if (!q) return data.clientes.slice(0, 8)
+		return data.clientes.filter(c =>
+			c.nombre.toLowerCase().includes(q) ||
+			(c.contacto && c.contacto.includes(q)) ||
+			(c.empresa && c.empresa.toLowerCase().includes(q))
+		).slice(0, 8)
+	})())
+
+	let clienteConTelefono = $derived(
+		nuevoContacto.trim()
+			? (data.clientes.find(c => c.contacto?.trim() === nuevoContacto.trim()) ?? null)
+			: null
+	)
+
 	// ── Carrito local ──
 	interface ItemCarritoLocal {
 		id: string
@@ -93,6 +115,13 @@
 		carrito = carrito.filter((i) => i.id !== id)
 	}
 
+	// ── Seleccionar cliente existente ──
+	function seleccionarCliente(id: string) {
+		clienteId = id
+		mostrarResultados = false
+		busquedaCliente = ''
+	}
+
 	// ── Crear cliente ──
 	async function crearCliente() {
 		if (!nuevoNombre.trim()) return mostrarToast('El nombre es obligatorio', 'error')
@@ -103,7 +132,7 @@
 				nombre: nuevoNombre.trim(),
 				contacto: nuevoContacto.trim() || null
 			})
-			.select('id, nombre, empresa')
+			.select('id, nombre, empresa, contacto')
 			.single()
 		guardandoCliente = false
 		if (error || !nuevo) return mostrarToast('Error al crear cliente', 'error')
@@ -404,17 +433,63 @@
 				<h2 class="mb-3 text-sm font-medium text-[var(--text)]">Cliente</h2>
 
 				{#if !creandoCliente}
-					<select
-						bind:value={clienteId}
-						class="input-field w-full"
-					>
-						<option value="">Seleccionar cliente...</option>
-						{#each data.clientes as c}
-							<option value={c.id}>
-								{c.nombre}{c.empresa ? ` — ${c.empresa}` : ''}
-							</option>
-						{/each}
-					</select>
+					{#if clienteSeleccionado}
+						<!-- Cliente seleccionado -->
+						<div class="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg-card-2)] px-3 py-2.5">
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium text-[var(--text)]">{clienteSeleccionado.nombre}</p>
+								{#if clienteSeleccionado.empresa}
+									<p class="truncate text-xs text-[var(--text-dim)]">{clienteSeleccionado.empresa}</p>
+								{/if}
+								{#if clienteSeleccionado.contacto}
+									<p class="truncate text-xs text-[var(--text-dim)]">{clienteSeleccionado.contacto}</p>
+								{/if}
+							</div>
+							<button
+								type="button"
+								onclick={() => { clienteId = ''; busquedaCliente = ''; }}
+								class="ml-2 shrink-0 text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors"
+							>Cambiar</button>
+						</div>
+					{:else}
+						<!-- Búsqueda de cliente -->
+						<div class="relative">
+							<input
+								type="text"
+								bind:value={busquedaCliente}
+								oninput={() => (mostrarResultados = true)}
+								onfocus={() => (mostrarResultados = true)}
+								onblur={() => setTimeout(() => (mostrarResultados = false), 150)}
+								placeholder="Buscar por nombre o teléfono..."
+								class="input-field w-full pr-8"
+							/>
+							<svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+
+							{#if mostrarResultados}
+								<div class="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-xl">
+									{#if clientesFiltrados.length > 0}
+										{#each clientesFiltrados as c (c.id)}
+											<button
+												type="button"
+												onmousedown={() => seleccionarCliente(c.id)}
+												class="w-full border-b border-[var(--border)] px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-[var(--bg-card-2)]"
+											>
+												<span class="block text-sm text-[var(--text)]">{c.nombre}{c.empresa ? ` — ${c.empresa}` : ''}</span>
+												{#if c.contacto}
+													<span class="block text-[11px] text-[var(--text-dim)]">{c.contacto}</span>
+												{/if}
+											</button>
+										{/each}
+									{:else if busquedaCliente.trim()}
+										<div class="px-3 py-2.5 text-xs text-[var(--text-dim)]">
+											Sin resultados para "{busquedaCliente}"
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+					{/if}
+
 					<button
 						type="button"
 						onclick={() => (creandoCliente = true)}
@@ -424,6 +499,7 @@
 						Crear cliente nuevo
 					</button>
 				{:else}
+					<!-- Formulario nuevo cliente -->
 					<div class="space-y-2">
 						<input
 							type="text"
@@ -431,12 +507,23 @@
 							placeholder="Nombre *"
 							class="input-field w-full"
 						/>
-						<input
-							type="text"
-							bind:value={nuevoContacto}
-							placeholder="Telefono"
-							class="input-field w-full"
-						/>
+						<div>
+							<input
+								type="text"
+								bind:value={nuevoContacto}
+								placeholder="Teléfono"
+								class="input-field w-full"
+							/>
+							{#if clienteConTelefono}
+								<div class="mt-1.5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+									<svg class="mt-0.5 shrink-0 text-amber-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+									<p class="text-xs text-amber-300">
+										Este teléfono ya está registrado a
+										<strong class="font-semibold">{clienteConTelefono.nombre}</strong>
+									</p>
+								</div>
+							{/if}
+						</div>
 						<div class="flex gap-2">
 							<button
 								type="button"
@@ -446,7 +533,7 @@
 							>{guardandoCliente ? 'Creando...' : 'Crear'}</button>
 							<button
 								type="button"
-								onclick={() => (creandoCliente = false)}
+								onclick={() => { creandoCliente = false; nuevoNombre = ''; nuevoContacto = ''; }}
 								class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
 							>Cancelar</button>
 						</div>
