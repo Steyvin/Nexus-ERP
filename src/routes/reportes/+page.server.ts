@@ -55,7 +55,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		periodoQuery = periodoQuery.gte('created_at', inicioSemana.toISOString())
 	}
 
-	const [semanasRes, productosTopRes, pedMesActualRes, pedMesAnteriorRes, pedSemanaActualRes, pedSemanaAnteriorRes, periodoRes] =
+	const [semanasRes, productosTopRes, pedMesActualRes, pedMesAnteriorRes, pedSemanaActualRes, pedSemanaAnteriorRes, periodoRes, deudoresRes] =
 		await Promise.all([
 			supabase
 				.from('v_resumen_semanal')
@@ -93,7 +93,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.gte('created_at', inicioSemanaAnterior.toISOString())
 				.lte('created_at', finSemanaAnterior.toISOString()),
 
-			periodoQuery
+			periodoQuery,
+
+			supabase
+				.from('pedidos')
+				.select('id, saldo, precio_total, abono, clientes(nombre), pedido_items(tipo_label, descripcion)')
+				.gt('saldo', 0)
+				.order('created_at', { ascending: false })
 		])
 
 	// ── Calcular totales ─────────────────────────────────────────────────────
@@ -128,6 +134,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		(p.pedido_items ?? []).map((i: any) => ({ ...i, cliente_nombre: p.clientes?.nombre, pedido_id: p.id }))
 	)
 
+	const deudores = (deudoresRes.data ?? []) as any[]
+	const totalMeDeben = deudores.reduce((sum, p) => sum + Number(p.saldo ?? 0), 0)
+
 	return {
 		periodo: calcMes(pedidosPeriodo),
 		fechaDesde,
@@ -140,6 +149,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		semanaAnterior: calcMes((pedSemanaAnteriorRes.data ?? []) as any),
 		nombreMesActual: `${meses[ahora.getMonth()]} ${ahora.getFullYear()}`,
 		nombreMesAnterior: `${meses[(ahora.getMonth() + 11) % 12]} ${ahora.getMonth() === 0 ? ahora.getFullYear() - 1 : ahora.getFullYear()}`,
-		itemsPeriodo
+		itemsPeriodo,
+		deudores,
+		totalMeDeben
 	}
 }

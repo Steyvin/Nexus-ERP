@@ -541,6 +541,53 @@
 		</div>
 	</div>
 
+	<!-- ═══ REPORTE "ME DEBEN" ═══ -->
+	<div class="mt-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+		<div class="border-b border-[var(--border)] px-5 py-3 flex items-center justify-between">
+			<div>
+				<h2 class="text-sm font-medium text-[var(--text)]">Me deben (Saldos Pendientes)</h2>
+				<p class="text-[11px] text-[var(--text-dim)]">Total pendiente por cobrar de todos los pedidos</p>
+			</div>
+			<div class="text-right">
+				<p class="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Total Pendiente</p>
+				<p class="text-lg font-bold text-[var(--warning)]">{fmt(data.totalMeDeben)}</p>
+			</div>
+		</div>
+
+		{#if data.deudores.length === 0}
+			<div class="px-5 py-10 text-center text-sm text-[var(--text-dim)]">
+				No hay saldos pendientes de cobro.
+			</div>
+		{:else}
+			<div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+				<table class="w-full text-sm relative">
+					<thead class="sticky top-0 bg-[var(--bg-card)] z-10 shadow-sm">
+						<tr class="border-b border-[var(--border)] text-left text-[11px] text-[var(--text-muted)]">
+							<th class="px-5 py-3 font-medium">Cliente</th>
+							<th class="px-5 py-3 font-medium">Producto</th>
+							<th class="px-5 py-3 font-medium text-right">Precio Total</th>
+							<th class="px-5 py-3 font-medium text-right">Abonado</th>
+							<th class="px-5 py-3 font-medium text-right">Saldo Pendiente</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.deudores as pedido (pedido.id)}
+							<tr class="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--bg-card-2)] transition-colors">
+								<td class="px-5 py-3 font-medium text-[var(--text)]">{pedido.clientes?.nombre || 'Sin cliente'}</td>
+								<td class="px-5 py-3 text-[var(--text-dim)]">
+									{pedido.pedido_items?.map((i: any) => i.tipo_label).join(', ') || 'Sin items'}
+								</td>
+								<td class="px-5 py-3 text-right text-[var(--text)]">{fmt(Number(pedido.precio_total))}</td>
+								<td class="px-5 py-3 text-right text-[var(--text-muted)]">{fmt(Number(pedido.abono))}</td>
+								<td class="px-5 py-3 text-right font-semibold text-[var(--warning)]">{fmt(Number(pedido.saldo))}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</div>
+
 	<!-- ═══ PRODUCTOS MÁS VENDIDOS ═══ -->
 	<div class="mt-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
 		<div class="border-b border-[var(--border)] px-5 py-3">

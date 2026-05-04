@@ -32,7 +32,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		)
 		.order(ordenCampo, { ascending: ordenAsc, nullsFirst: false })
 
-	if (filtroEstado) query = query.eq('estado', filtroEstado)
+	if (filtroEstado) {
+		if (filtroEstado !== 'Todos') {
+			query = query.eq('estado', filtroEstado)
+		}
+	} else {
+		// Por defecto no mostrar los terminados ni entregados
+		query = query.not('estado', 'in', '("Terminado","Entregado")')
+	}
 	if (busqueda) query = query.ilike('clientes.nombre', `%${busqueda}%`)
 	if (fechaDesde) query = query.gte(tipofecha, fechaDesde)
 	if (fechaHasta) query = query.lte(tipofecha, `${fechaHasta}T23:59:59`)

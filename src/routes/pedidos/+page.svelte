@@ -36,7 +36,8 @@
 	const filtrosEstado = $derived.by(() => {
 		if (esFabricador) {
 			return [
-				{ val: null, label: 'Todos' },
+				{ val: null, label: 'Activos' },
+				{ val: 'Todos', label: 'Todos' },
 				{ val: 'En fabricación', label: 'En fabricación' },
 				{ val: 'En proceso', label: 'En proceso' },
 				{ val: 'Terminado', label: 'Terminados' }
@@ -44,13 +45,15 @@
 		}
 		if (esDiseñador) {
 			return [
-				{ val: null, label: 'Todos' },
+				{ val: null, label: 'Activos' },
+				{ val: 'Todos', label: 'Todos' },
 				{ val: 'Pedido realizado', label: 'Nuevos' },
 				{ val: 'En proceso', label: 'En proceso' }
 			]
 		}
 		return [
-			{ val: null, label: 'Todos' },
+			{ val: null, label: 'Activos' },
+			{ val: 'Todos', label: 'Todos' },
 			...ESTADOS_PEDIDO.map((e) => ({ val: e, label: e }))
 		]
 	})
