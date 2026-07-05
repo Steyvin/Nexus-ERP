@@ -89,18 +89,11 @@ export const actualizarPedidoSchema = z.object({
 	nota: textoOpcional
 })
 
-export const añadirAbonoSchema = z.object({
-	pedido_id: uuid,
-	monto: numeroPositivo
-})
-
-const uuidOpcional = z.string().uuid('ID inválido').or(z.literal('')).optional().transform((v) => (v && v.length > 0 ? v : null))
-
 export const agregarAbonoSchema = z.object({
 	pedido_id: uuid,
 	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
 	concepto: textoOpcional,
-	banco_id: uuidOpcional
+	banco_id: z.string().uuid('Debes seleccionar dónde se recibió el abono')
 })
 
 export const eliminarAbonoSchema = z.object({
