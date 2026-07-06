@@ -1,6 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, crearBancoSchema } from '$lib/utils/validate'
+import { parseForm, esError, crearBancoSchema, ajustarSaldoBancoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -59,5 +59,52 @@ export const actions: Actions = {
 		})
 
 		throw redirect(303, `/bancos/${banco.id}`)
+	},
+
+	// Ajustar el saldo de un banco a un valor exacto, registrando la diferencia como movimiento de ajuste
+	ajustarSaldo: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(ajustarSaldoBancoSchema, form)
+		if (esError(datos)) return datos
+
+		const { data: banco, error: errBanco } = await locals.supabase
+			.from('v_bancos_saldo')
+			.select('id, saldo')
+			.eq('id', datos.banco_id)
+			.single()
+
+		if (errBanco || !banco) return fail(404, { error: 'Banco no encontrado' })
+
+		const diferencia = Math.round(datos.nuevo_saldo) - Math.round(Number(banco.saldo))
+		if (diferencia === 0) return { success: true }
+
+		const { error: err } = await locals.supabase
+			.from('movimientos_financieros')
+			.insert({
+				banco_id: datos.banco_id,
+				tipo: 'ajuste',
+				concepto: 'Ajuste manual de saldo',
+				monto: diferencia,
+				fecha: new Date().toISOString().slice(0, 10),
+				registrado_por: usuario.id
+			})
+
+		if (err) return fail(500, { error: 'Error al ajustar saldo: ' + err.message })
+
+		await registrarAudit(locals.supabase, {
+			accion: 'ajustar_saldo_banco',
+			tabla: 'movimientos_financieros',
+			registro_id: datos.banco_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre,
+			detalles: { saldo_anterior: banco.saldo, saldo_nuevo: datos.nuevo_saldo, diferencia }
+		})
+
+		return { success: true }
 	}
 }

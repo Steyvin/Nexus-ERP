@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms'
+	import { invalidateAll } from '$app/navigation'
 	import { fmt } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
 	import type { PageData } from './$types'
@@ -17,6 +18,21 @@
 	let nuevoColor = $state('#3b82f6')
 	let nuevasNotas = $state('')
 	let guardando = $state(false)
+
+	let ajustando = $state(false)
+	let bancoAjuste = $state<any>(null)
+	let nuevoSaldoAjuste = $state(0)
+	let guardandoAjuste = $state(false)
+
+	const diferenciaAjuste = $derived(
+		bancoAjuste ? Math.round(Number(nuevoSaldoAjuste)) - Math.round(Number(bancoAjuste.saldo)) : 0
+	)
+
+	function abrirAjuste(banco: any) {
+		bancoAjuste = banco
+		nuevoSaldoAjuste = Number(banco.saldo)
+		ajustando = true
+	}
 
 	const tiposLabel: Record<string, string> = {
 		banco: 'Banco',
@@ -72,42 +88,49 @@
 	<!-- Grid de bancos -->
 	<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		{#each bancos as banco (banco.id)}
-			<a
-				href="/bancos/{banco.id}"
-				class="block rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--border-light)]"
+			<div
+				class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--border-light)]"
 				class:opacity-50={!banco.activo}
 			>
-				<div class="flex items-start justify-between gap-3">
-					<div class="flex items-center gap-2">
-						<div class="flex h-9 w-9 items-center justify-center rounded-lg text-lg" style="background-color: {banco.color}20; color: {banco.color}">
-							{tiposIcon[banco.tipo] ?? '🏦'}
+				<a href="/bancos/{banco.id}" class="block">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex items-center gap-2">
+							<div class="flex h-9 w-9 items-center justify-center rounded-lg text-lg" style="background-color: {banco.color}20; color: {banco.color}">
+								{tiposIcon[banco.tipo] ?? '🏦'}
+							</div>
+							<div class="min-w-0">
+								<p class="truncate text-sm font-medium text-[var(--text)]">{banco.nombre}</p>
+								<p class="text-[10px] text-[var(--text-dim)]">{tiposLabel[banco.tipo] ?? banco.tipo}{banco.numero_cuenta ? ` · ${banco.numero_cuenta}` : ''}</p>
+							</div>
 						</div>
-						<div class="min-w-0">
-							<p class="truncate text-sm font-medium text-[var(--text)]">{banco.nombre}</p>
-							<p class="text-[10px] text-[var(--text-dim)]">{tiposLabel[banco.tipo] ?? banco.tipo}{banco.numero_cuenta ? ` · ${banco.numero_cuenta}` : ''}</p>
-						</div>
+						{#if !banco.activo}
+							<span class="rounded bg-[var(--bg-card-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-dim)]">Inactivo</span>
+						{/if}
 					</div>
-					{#if !banco.activo}
-						<span class="rounded bg-[var(--bg-card-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-dim)]">Inactivo</span>
+
+					<div class="mt-4">
+						<p class="text-[10px] text-[var(--text-dim)]">Saldo actual</p>
+						<p class="mt-0.5 text-xl font-semibold {Number(banco.saldo) >= 0 ? 'text-[var(--text)]' : 'text-red-400'}">
+							{fmt(banco.saldo)}
+						</p>
+					</div>
+
+					{#if banco.saldo_inicial > 0 || banco.total_movimientos !== 0}
+						<div class="mt-3 flex justify-between text-[10px] text-[var(--text-dim)]">
+							<span>Inicial: {fmt(banco.saldo_inicial)}</span>
+							<span class={Number(banco.total_movimientos) >= 0 ? 'text-green-400' : 'text-red-400'}>
+								{Number(banco.total_movimientos) >= 0 ? '+' : ''}{fmt(banco.total_movimientos)}
+							</span>
+						</div>
 					{/if}
-				</div>
+				</a>
 
-				<div class="mt-4">
-					<p class="text-[10px] text-[var(--text-dim)]">Saldo actual</p>
-					<p class="mt-0.5 text-xl font-semibold {Number(banco.saldo) >= 0 ? 'text-[var(--text)]' : 'text-red-400'}">
-						{fmt(banco.saldo)}
-					</p>
-				</div>
-
-				{#if banco.saldo_inicial > 0 || banco.total_movimientos !== 0}
-					<div class="mt-3 flex justify-between text-[10px] text-[var(--text-dim)]">
-						<span>Inicial: {fmt(banco.saldo_inicial)}</span>
-						<span class={Number(banco.total_movimientos) >= 0 ? 'text-green-400' : 'text-red-400'}>
-							{Number(banco.total_movimientos) >= 0 ? '+' : ''}{fmt(banco.total_movimientos)}
-						</span>
-					</div>
-				{/if}
-			</a>
+				<button
+					type="button"
+					onclick={() => abrirAjuste(banco)}
+					class="btn-secondary mt-4 w-full rounded-lg px-3 py-1.5 text-xs"
+				>Ajustar balance</button>
+			</div>
 		{/each}
 	</div>
 
@@ -228,6 +251,73 @@
 	</div>
 {/if}
 
+<!-- Modal ajustar balance -->
+{#if ajustando && bancoAjuste}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+		<div class="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl">
+			<div class="mb-4 flex items-center justify-between">
+				<h3 class="text-lg font-semibold text-[var(--text)]">Ajustar balance — {bancoAjuste.nombre}</h3>
+				<button
+					type="button"
+					onclick={() => (ajustando = false)}
+					class="text-[var(--text-dim)] hover:text-[var(--text)]"
+					aria-label="Cerrar"
+				>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+				</button>
+			</div>
+
+			<p class="mb-3 text-xs text-[var(--text-muted)]">Saldo actual: <span class="font-medium text-[var(--text)]">{fmt(bancoAjuste.saldo)}</span></p>
+
+			<form method="POST" action="?/ajustarSaldo" use:enhance={() => {
+				guardandoAjuste = true
+				return async ({ result }) => {
+					guardandoAjuste = false
+					if (result.type === 'success') {
+						mostrarToast('Saldo ajustado')
+						ajustando = false
+						await invalidateAll()
+					} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+						mostrarToast(result.data.error, 'error')
+					}
+				}
+			}} class="space-y-3">
+				<input type="hidden" name="banco_id" value={bancoAjuste.id} />
+
+				<div>
+					<label for="nuevo_saldo" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">Nuevo saldo *</label>
+					<div class="relative">
+						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
+						<input
+							id="nuevo_saldo"
+							name="nuevo_saldo"
+							type="number"
+							bind:value={nuevoSaldoAjuste}
+							required
+							class="input-field w-full !pl-8"
+						/>
+					</div>
+				</div>
+
+				{#if diferenciaAjuste !== 0}
+					<p class="text-xs {diferenciaAjuste > 0 ? 'text-green-400' : 'text-red-400'}">
+						Se registrará un ajuste de {diferenciaAjuste > 0 ? '+' : ''}{fmt(diferenciaAjuste)}
+					</p>
+				{/if}
+
+				<div class="mt-4 flex justify-end gap-2">
+					<button type="button" onclick={() => (ajustando = false)}
+						class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+					>Cancelar</button>
+					<button type="submit" disabled={guardandoAjuste || diferenciaAjuste === 0} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-40">
+						{guardandoAjuste ? 'Guardando...' : 'Ajustar'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.btn-primary {
 		background: var(--brand);
@@ -236,6 +326,17 @@
 	}
 	.btn-primary:hover:not(:disabled) {
 		background: var(--brand-light);
+	}
+
+	.btn-secondary {
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		background: transparent;
+		transition: all 0.15s;
+	}
+	.btn-secondary:hover {
+		border-color: var(--border-light);
+		color: var(--text);
 	}
 
 	.input-field {

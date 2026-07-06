@@ -141,6 +141,11 @@ export const eliminarMovimientoBancoSchema = z.object({
 	movimiento_id: uuid
 })
 
+export const ajustarSaldoBancoSchema = z.object({
+	banco_id: uuid,
+	nuevo_saldo: z.coerce.number()
+})
+
 // ── Schemas para Pedidos [id] (con campos extra para timeline) ────────────────
 
 export const cambiarEstadoItemDetalleSchema = cambiarEstadoItemSchema.extend({

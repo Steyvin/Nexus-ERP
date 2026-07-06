@@ -22,6 +22,7 @@ type AccionAudit =
 	| 'eliminar_banco'
 	| 'agregar_movimiento_banco'
 	| 'eliminar_movimiento_banco'
+	| 'ajustar_saldo_banco'
 	| 'eliminar_cotizacion'
 	| 'cambiar_precio_item'
 	| 'cambiar_total_cotizacion'
