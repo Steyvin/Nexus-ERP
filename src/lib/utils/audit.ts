@@ -27,6 +27,8 @@ type AccionAudit =
 	| 'cambiar_precio_item'
 	| 'cambiar_total_cotizacion'
 	| 'convertir_a_pedido'
+	| 'generar_imagen_ia'
+	| 'elegir_variante_ia'
 
 interface AuditEntry {
 	accion: AccionAudit

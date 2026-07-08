@@ -169,6 +169,21 @@ export const asignarItemDetalleSchema = asignarItemSchema.extend({
 	nombre_asignado: textoOpcional
 })
 
+export const generarImagenIASchema = z.object({
+	item_id: uuid,
+	pedido_id: uuid,
+	descripcion: textoOpcional,
+	imagen_fachada_url: z.string().url('Sube la foto de la fachada'),
+	num_variantes: z.coerce.number().int().min(1).max(3).default(3)
+})
+
+export const elegirVarianteIASchema = z.object({
+	generacion_id: uuid,
+	item_id: uuid,
+	pedido_id: uuid,
+	url: z.string().url('URL de imagen inválida')
+})
+
 // ── Schemas para Cotizaciones ─────────────────────────────────────────────────
 
 export const actualizarItemCotSchema = z.object({
