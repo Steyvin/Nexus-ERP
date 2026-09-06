@@ -15,10 +15,6 @@
 	const creador = $derived((ped as any).perfiles)
 	const items = $derived((ped as any).pedido_items ?? [])
 	const notas = $derived((ped as any).pedido_notas ?? [])
-	const generaciones = $derived(data.generaciones ?? [])
-	function ultimaGeneracion(itemId: string) {
-		return generaciones.find((g: any) => g.pedido_item_id === itemId) ?? null
-	}
 
 	const esAdmin = $derived(data.rol === 'admin')
 	const esFinanzas = $derived(data.rol === 'finanzas')
@@ -62,43 +58,6 @@
 	let urlDiseno = $state('')
 	let descripcionDiseno = $state('')
 
-	// Generación de montaje con IA
-	let generandoImagen = $state<any | null>(null)
-	let urlFachadaIA = $state('')
-	let descripcionIA = $state('')
-	let numVariantesIA = $state(3)
-	let generacionId = $state<string | null>(null)
-	let generacionEstado = $state<any | null>(null)
-	let pollTimer: ReturnType<typeof setInterval> | null = null
-
-	function abrirGeneracionIA(item: any) {
-		generandoImagen = item
-		urlFachadaIA = ''
-		descripcionIA = ''
-		numVariantesIA = 3
-		generacionId = null
-		generacionEstado = null
-	}
-
-	function cerrarGeneracionIA() {
-		if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-		generandoImagen = null
-	}
-
-	function iniciarPolling(id: string) {
-		generacionId = id
-		const consultar = async () => {
-			const res = await fetch(`/pedidos/${ped.id}/generaciones/${id}`)
-			if (!res.ok) return
-			generacionEstado = await res.json()
-			if (generacionEstado.estado !== 'procesando') {
-				if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-				invalidateAll()
-			}
-		}
-		consultar()
-		pollTimer = setInterval(consultar, 8000)
-	}
 	let nuevaNota = $state('')
 	let editandoInfo = $state(false)
 	let editFechaEntrega = $state('')
@@ -346,39 +305,6 @@
 													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 													Diseño
 												</button>
-											{/if}
-
-											<!-- Diseñador / Admin: generar montaje de fachada con IA -->
-											{#if esDiseñador || esAdmin}
-												{@const genActiva = ultimaGeneracion(item.id)}
-												<button
-													onclick={() => abrirGeneracionIA(item)}
-													disabled={!item.archivo_diseno_url}
-													class="btn-secondary rounded-lg px-3 py-1 text-[10px] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
-													title={item.archivo_diseno_url ? 'Generar montaje de fachada con IA' : 'Sube el diseño antes de generar el montaje'}
-												>
-													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
-													Montaje IA
-												</button>
-												{#if genActiva?.estado === 'procesando'}
-													<span class="flex items-center gap-1 text-[10px] text-[var(--text-dim)]">
-														<span class="h-2.5 w-2.5 animate-spin rounded-full border border-[var(--border)] border-t-[var(--brand)]"></span>
-														Generando...
-													</span>
-												{/if}
-											{/if}
-
-											<!-- Montaje IA elegido -->
-											{#if item.imagen_montaje_url}
-												<a
-													href={item.imagen_montaje_url}
-													target="_blank"
-													rel="noopener"
-													class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/5 px-2.5 py-1 text-[10px] text-purple-400 hover:bg-purple-500/10 transition-colors"
-												>
-													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-													Ver montaje IA
-												</a>
 											{/if}
 
 											<!-- Marcar diseño completado (diseñador o admin) -->
@@ -945,153 +871,6 @@
 		</div>
 	</div>
 {/if}
-
-<!-- Modal: Generar montaje de fachada con IA -->
-{#if generandoImagen}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={cerrarGeneracionIA}>
-		<div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
-			<h3 class="text-lg font-semibold text-[var(--text)]">Generar montaje con IA</h3>
-			<p class="mt-1 text-xs text-[var(--text-muted)]">{generandoImagen.descripcion}</p>
-
-			{#if !generacionId}
-				<!-- Paso 1: foto de fachada + descripción -->
-				{#if urlFachadaIA}
-					<div class="relative mt-4 overflow-hidden rounded-xl border border-[var(--border)]">
-						<img src={urlFachadaIA} alt="Fachada" class="max-h-56 w-full object-contain bg-[#080808]" />
-						<button
-							type="button"
-							onclick={() => (urlFachadaIA = '')}
-							class="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-white/80 backdrop-blur transition-colors hover:border-red-400/40 hover:text-red-400"
-							title="Eliminar"
-						>
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-						</button>
-					</div>
-				{:else}
-					<label class="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/12 bg-white/2 p-8 transition-all hover:border-white/25 hover:bg-white/4">
-						<input
-							type="file"
-							accept="image/*"
-							capture="environment"
-							class="hidden"
-							onchange={async (e) => {
-								const input = e.target as HTMLInputElement
-								const file = input.files?.[0]
-								if (!file) return
-								const { url, error } = await subirImagenComprimida(file, 'fachadas')
-								if (error) {
-									mostrarToast('Error al subir imagen: ' + error, 'error')
-									return
-								}
-								urlFachadaIA = url
-							}}
-						/>
-						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--text-dim)]"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-						<span class="text-sm font-medium text-[var(--text-muted)]">Foto de la fachada del cliente</span>
-						<span class="text-[10px] text-[var(--text-dim)]">Toca para seleccionar o tomar foto</span>
-					</label>
-				{/if}
-
-				<label class="mt-4 block text-xs font-medium text-[var(--text-muted)]" for="descripcion-ia">Descripción adicional (opcional)</label>
-				<textarea
-					id="descripcion-ia"
-					bind:value={descripcionIA}
-					rows="2"
-					placeholder="Ej: de noche, letrero encendido, vista desde la esquina..."
-					class="input-field mt-1 w-full resize-none"
-				></textarea>
-
-				<span class="mt-4 block text-xs font-medium text-[var(--text-muted)]">Cantidad de opciones a generar</span>
-				<div class="mt-1 flex gap-2">
-					{#each [1, 2, 3] as n}
-						<button
-							type="button"
-							onclick={() => (numVariantesIA = n)}
-							class="flex-1 rounded-lg border py-1.5 text-sm transition-colors {numVariantesIA === n ? 'border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand-light)]' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--border-light)]'}"
-						>{n}</button>
-					{/each}
-				</div>
-				<p class="mt-1 text-[10px] text-[var(--text-dim)]">Cada opción es una llamada aparte a la API y consume créditos por separado.</p>
-
-				<form method="POST" action="?/generarImagenIA" use:enhance={() => {
-					return async ({ result }) => {
-						if (result.type === 'success' && (result.data as any)?.generacionId) {
-							iniciarPolling((result.data as any).generacionId)
-						} else if (result.type === 'failure') {
-							mostrarToast((result.data as any)?.error ?? 'Error al generar el montaje', 'error')
-						}
-					}
-				}}>
-					<input type="hidden" name="item_id" value={generandoImagen.id} />
-					<input type="hidden" name="pedido_id" value={ped.id} />
-					<input type="hidden" name="descripcion" value={descripcionIA} />
-					<input type="hidden" name="imagen_fachada_url" value={urlFachadaIA} />
-					<input type="hidden" name="num_variantes" value={numVariantesIA} />
-					<div class="mt-5 flex justify-end gap-3">
-						<button type="button" onclick={cerrarGeneracionIA} class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]">Cancelar</button>
-						<button type="submit" disabled={!urlFachadaIA} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-40">Generar</button>
-					</div>
-				</form>
-
-			{:else if !generacionEstado || generacionEstado.estado === 'procesando'}
-				<!-- Paso 2: generando -->
-				<div class="mt-8 flex flex-col items-center gap-3 py-8">
-					<div class="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--brand)]"></div>
-					<p class="text-sm text-[var(--text-muted)]">
-						{#if generacionEstado?.progreso}
-							Generando {generacionEstado.progreso.completadas} de {generacionEstado.progreso.total}...
-						{:else}
-							Generando montaje(s)...
-						{/if}
-					</p>
-					<p class="text-[10px] text-[var(--text-dim)]">Puede tardar uno o dos minutos</p>
-				</div>
-
-			{:else if generacionEstado.estado === 'completado'}
-				<!-- Paso 3: elegir variante -->
-				<div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-					{#each generacionEstado.resultados as url}
-						<div class="overflow-hidden rounded-lg border border-[var(--border)]">
-							<img src={url} alt="Montaje generado" class="h-40 w-full object-cover bg-[#080808]" />
-							<form method="POST" action="?/elegirVarianteIA" use:enhance={() => {
-								return async ({ result }) => {
-									if (result.type === 'success') {
-										mostrarToast('Montaje guardado')
-										cerrarGeneracionIA()
-										invalidateAll()
-									}
-								}
-							}}>
-								<input type="hidden" name="generacion_id" value={generacionId} />
-								<input type="hidden" name="item_id" value={generandoImagen.id} />
-								<input type="hidden" name="pedido_id" value={ped.id} />
-								<input type="hidden" name="url" value={url} />
-								<button type="submit" class="w-full py-1.5 text-[11px] font-medium text-[var(--brand-light)] transition-colors hover:bg-[var(--brand)]/10">Usar esta</button>
-							</form>
-						</div>
-					{/each}
-				</div>
-				{#if generacionEstado.error_mensaje}
-					<p class="mt-2 text-[10px] text-[var(--text-dim)]">{generacionEstado.error_mensaje}</p>
-				{/if}
-				<div class="mt-4 flex justify-end">
-					<button type="button" onclick={cerrarGeneracionIA} class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]">Cerrar sin elegir</button>
-				</div>
-
-			{:else}
-				<!-- Error -->
-				<div class="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
-					{generacionEstado.error_mensaje ?? 'Ocurrió un error al generar las imágenes'}
-				</div>
-				<div class="mt-4 flex justify-end gap-3">
-					<button type="button" onclick={cerrarGeneracionIA} class="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]">Cerrar</button>
-					<button type="button" onclick={() => { generacionId = null; generacionEstado = null }} class="btn-primary rounded-lg px-5 py-2 text-sm font-medium">Intentar de nuevo</button>
-				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
-
 
 <style>
 	.btn-primary {

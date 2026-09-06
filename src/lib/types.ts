@@ -18,8 +18,6 @@ export type EstadoPedido =
 
 export type EstadoItem = 'pendiente' | 'en_fabricacion' | 'terminado'
 
-export type EstadoGeneracionIA = 'procesando' | 'completado' | 'error'
-
 export type TipoProducto =
   | 'nube'
   | 'letra'
@@ -145,30 +143,11 @@ export interface PedidoItem {
   archivo_diseno_url:   string | null
   diseno_completado:    boolean
   notas_produccion:     string | null
-  imagen_montaje_url:   string | null
   orden:                number
   updated_at:           string
   created_at:           string
   // Relaciones opcionales
   asignado?:            Perfil
-}
-
-export interface GeneracionIA {
-  id:                   string
-  pedido_id:            string
-  pedido_item_id:       string
-  creado_por:           string | null
-  prompt:               string
-  imagen_fachada_url:   string
-  imagen_diseno_url:    string
-  descripcion_usuario:  string | null
-  num_variantes:        number
-  task_ids:             string[]
-  estado:               EstadoGeneracionIA
-  resultados:           string[]
-  variante_elegida_url: string | null
-  error_mensaje:        string | null
-  created_at:           string
 }
 
 export interface PedidoNota {

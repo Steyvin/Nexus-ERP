@@ -1,8 +1,7 @@
 import { error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, marcarDisenoSchema, agregarAbonoSchema, eliminarAbonoSchema, generarImagenIASchema, elegirVarianteIASchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, marcarDisenoSchema, agregarAbonoSchema, eliminarAbonoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
-import { construirPromptMontaje, urlABase64, crearMontajesMystic } from '$lib/server/magnific'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const supabase = locals.supabase
@@ -62,21 +61,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		bancos = bancosRes.data ?? []
 	}
 
-	// Generaciones de imagen IA del pedido (admin/fabricador ven todas, diseñador solo las suyas vía RLS)
-	const { data: generaciones } = await supabase
-		.from('generaciones_ia')
-		.select('*')
-		.eq('pedido_id', params.id)
-		.order('created_at', { ascending: false })
-
 	return {
 		pedido: { ...pedido, pedido_items: items, pedido_notas: notas },
 		rol,
 		userId: usuario?.id ?? null,
 		perfiles,
 		abonos,
-		bancos,
-		generaciones: generaciones ?? []
+		bancos
 	}
 }
 
@@ -465,131 +456,6 @@ export const actions: Actions = {
 				concepto: movimiento.concepto,
 				nuevo_abono_total: nuevoAbono
 			}
-		})
-
-		return { success: true }
-	},
-
-	// Generar montaje de fachada con IA (admin o diseñador, requiere diseño ya subido)
-	generarImagenIA: async ({ request, locals }) => {
-		const usuario = await locals.getUsuario()
-		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
-			return fail(403, { error: 'Sin permisos para generar imágenes con IA' })
-		}
-
-		const form = await request.formData()
-		const datos = parseForm(generarImagenIASchema, form)
-		if (esError(datos)) return datos
-
-		const supabase = locals.supabase
-
-		const { data: item, error: errItem } = await supabase
-			.from('pedido_items')
-			.select('id, tipo_label, descripcion, archivo_diseno_url')
-			.eq('id', datos.item_id)
-			.single()
-
-		if (errItem || !item) return fail(404, { error: 'Item no encontrado' })
-		if (!item.archivo_diseno_url) {
-			return fail(400, { error: 'Este item no tiene un diseño subido. Sube el diseño antes de generar el montaje.' })
-		}
-
-		const prompt = construirPromptMontaje(item, datos.descripcion)
-
-		let structureRef: string
-		let styleRef: string
-		let taskIds: string[]
-		try {
-			;[structureRef, styleRef] = await Promise.all([
-				urlABase64(datos.imagen_fachada_url),
-				urlABase64(item.archivo_diseno_url)
-			])
-			taskIds = await crearMontajesMystic(
-				{ prompt, structureReferenceBase64: structureRef, styleReferenceBase64: styleRef },
-				datos.num_variantes
-			)
-		} catch (e) {
-			console.error('[Magnific] Error creando generación:', e)
-			return fail(502, { error: e instanceof Error ? e.message : 'Error al contactar Magnific API' })
-		}
-
-		const { data: generacion, error: errInsert } = await supabase
-			.from('generaciones_ia')
-			.insert({
-				pedido_id: datos.pedido_id,
-				pedido_item_id: datos.item_id,
-				creado_por: usuario.id,
-				prompt,
-				imagen_fachada_url: datos.imagen_fachada_url,
-				imagen_diseno_url: item.archivo_diseno_url,
-				descripcion_usuario: datos.descripcion || null,
-				num_variantes: datos.num_variantes,
-				task_ids: taskIds,
-				estado: 'procesando'
-			})
-			.select('id')
-			.single()
-
-		if (errInsert || !generacion) return fail(500, { error: 'Error al registrar la generación' })
-
-		await registrarCambio(
-			supabase,
-			datos.pedido_id,
-			usuario.id,
-			`[IA] Generando ${datos.num_variantes} montaje(s) de fachada para "${item.descripcion}"`
-		)
-
-		await registrarAudit(supabase, {
-			accion: 'generar_imagen_ia',
-			tabla: 'generaciones_ia',
-			registro_id: generacion.id,
-			usuario_id: usuario.id,
-			usuario_nombre: usuario.nombre,
-			detalles: { item_id: datos.item_id, num_variantes: datos.num_variantes }
-		})
-
-		return { success: true, generacionId: generacion.id }
-	},
-
-	// Elegir una variante generada como montaje final del item (admin o diseñador)
-	elegirVarianteIA: async ({ request, locals }) => {
-		const usuario = await locals.getUsuario()
-		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'diseñador')) {
-			return fail(403, { error: 'Sin permisos para elegir el montaje' })
-		}
-
-		const form = await request.formData()
-		const datos = parseForm(elegirVarianteIASchema, form)
-		if (esError(datos)) return datos
-
-		const supabase = locals.supabase
-
-		const { error: errItem } = await supabase
-			.from('pedido_items')
-			.update({ imagen_montaje_url: datos.url })
-			.eq('id', datos.item_id)
-
-		if (errItem) return fail(500, { error: 'Error al guardar el montaje elegido' })
-
-		await supabase
-			.from('generaciones_ia')
-			.update({ variante_elegida_url: datos.url })
-			.eq('id', datos.generacion_id)
-
-		await registrarCambio(
-			supabase,
-			datos.pedido_id,
-			usuario.id,
-			`[IA] Montaje de fachada elegido para el item`
-		)
-
-		await registrarAudit(supabase, {
-			accion: 'elegir_variante_ia',
-			tabla: 'pedido_items',
-			registro_id: datos.item_id,
-			usuario_id: usuario.id,
-			usuario_nombre: usuario.nombre,
-			detalles: { generacion_id: datos.generacion_id }
 		})
 
 		return { success: true }
