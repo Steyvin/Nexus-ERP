@@ -29,6 +29,20 @@ type AccionAudit =
 	| 'convertir_a_pedido'
 	| 'generar_imagen_ia'
 	| 'elegir_variante_ia'
+	| 'crear_proveedor'
+	| 'actualizar_proveedor'
+	| 'eliminar_proveedor'
+	| 'agregar_credito_proveedor'
+	| 'eliminar_credito_proveedor'
+	| 'agregar_pago_proveedor'
+	| 'eliminar_pago_proveedor'
+	| 'crear_acreedor_personal'
+	| 'actualizar_acreedor_personal'
+	| 'eliminar_acreedor_personal'
+	| 'agregar_credito_deuda_personal'
+	| 'eliminar_credito_deuda_personal'
+	| 'agregar_pago_deuda_personal'
+	| 'eliminar_pago_deuda_personal'
 
 interface AuditEntry {
 	accion: AccionAudit

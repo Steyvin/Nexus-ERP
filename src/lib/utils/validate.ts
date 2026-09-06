@@ -146,6 +146,104 @@ export const ajustarSaldoBancoSchema = z.object({
 	nuevo_saldo: z.coerce.number()
 })
 
+// ── Schemas para Proveedores (Financiera) ─────────────────────────────────────
+
+export const crearProveedorSchema = z.object({
+	nombre: textoRequerido,
+	contacto: textoOpcional,
+	email: textoOpcional,
+	ciudad: textoOpcional,
+	notas: textoOpcional
+})
+
+export const actualizarProveedorSchema = z.object({
+	proveedor_id: uuid,
+	nombre: textoRequerido,
+	contacto: textoOpcional,
+	email: textoOpcional,
+	ciudad: textoOpcional,
+	notas: textoOpcional,
+	activo: z.enum(['true', 'false']).transform((v) => v === 'true')
+})
+
+export const eliminarProveedorSchema = z.object({
+	proveedor_id: uuid
+})
+
+export const agregarCreditoProveedorSchema = z.object({
+	proveedor_id: uuid,
+	concepto: textoRequerido,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	fecha: textoOpcional
+})
+
+export const eliminarCreditoProveedorSchema = z.object({
+	proveedor_id: uuid,
+	credito_id: uuid
+})
+
+export const agregarPagoProveedorSchema = z.object({
+	proveedor_id: uuid,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	concepto: textoOpcional,
+	banco_id: z.string().uuid('Debes seleccionar de dónde sale el pago'),
+	fecha: textoOpcional
+})
+
+export const eliminarPagoProveedorSchema = z.object({
+	proveedor_id: uuid,
+	movimiento_id: uuid
+})
+
+// ── Schemas para Deudas Personales (Financiera) ───────────────────────────────
+
+const tipoDeudaPersonal = z.enum(['personal', 'negocio'])
+
+export const crearAcreedorPersonalSchema = z.object({
+	nombre: textoRequerido,
+	tipo: tipoDeudaPersonal.default('personal'),
+	contacto: textoOpcional,
+	notas: textoOpcional
+})
+
+export const actualizarAcreedorPersonalSchema = z.object({
+	acreedor_id: uuid,
+	nombre: textoRequerido,
+	tipo: tipoDeudaPersonal,
+	contacto: textoOpcional,
+	notas: textoOpcional,
+	activo: z.enum(['true', 'false']).transform((v) => v === 'true')
+})
+
+export const eliminarAcreedorPersonalSchema = z.object({
+	acreedor_id: uuid
+})
+
+export const agregarCreditoDeudaPersonalSchema = z.object({
+	acreedor_id: uuid,
+	concepto: textoRequerido,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	fecha: textoOpcional
+})
+
+export const eliminarCreditoDeudaPersonalSchema = z.object({
+	acreedor_id: uuid,
+	credito_id: uuid
+})
+
+export const agregarPagoDeudaPersonalSchema = z.object({
+	acreedor_id: uuid,
+	monto: z.coerce.number().min(1, 'El monto debe ser mayor a 0'),
+	concepto: textoOpcional,
+	banco_id: z.string().uuid('Debes seleccionar de dónde sale el pago'),
+	fecha: textoOpcional
+})
+
+export const eliminarPagoDeudaPersonalSchema = z.object({
+	acreedor_id: uuid,
+	movimiento_id: uuid
+})
+
 // ── Schemas para Pedidos [id] (con campos extra para timeline) ────────────────
 
 export const cambiarEstadoItemDetalleSchema = cambiarEstadoItemSchema.extend({

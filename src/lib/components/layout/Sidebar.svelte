@@ -27,6 +27,7 @@
 		{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 		{ href: '/clientes', label: 'Clientes', icon: 'users' },
 		{ href: '/bancos', label: 'Bancos', icon: 'wallet' },
+		{ href: '/financiera', label: 'Financiera', icon: 'trending-up' },
 		{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 	]
 
@@ -56,6 +57,7 @@
 				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 				{ href: '/clientes', label: 'Clientes', icon: 'users' },
 				{ href: '/bancos', label: 'Bancos', icon: 'wallet' },
+				{ href: '/financiera', label: 'Financiera', icon: 'trending-up' },
 				{ href: '/reportes', label: 'Reportes', icon: 'bar-chart' }
 			]
 		return [{ href: '/dashboard', label: 'Dashboard', icon: 'grid' }]
@@ -233,6 +235,18 @@
 									stroke-linecap="round"
 									stroke-linejoin="round"
 									><path d="M20 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 11h2"/><path d="M4 7V5a2 2 0 012-2h12"/></svg
+								>
+							{:else if item.icon === 'trending-up'}
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg
 								>
 							{:else if item.icon === 'bar-chart'}
 								<svg

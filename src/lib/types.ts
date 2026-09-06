@@ -29,7 +29,14 @@ export type TipoProducto =
   | 'acrilio_circular'
   | 'unico'
 
-export type TipoMovimiento = 'ingreso' | 'abono' | 'gasto' | 'ajuste'
+export type TipoMovimiento =
+  | 'ingreso'
+  | 'abono'
+  | 'gasto'
+  | 'ajuste'
+  | 'compra'
+  | 'pago'
+  | 'transferencia'
 
 // ─── Tablas ───────────────────────────────────────────────────────────────────
 
@@ -175,17 +182,79 @@ export interface PedidoNota {
 }
 
 export interface MovimientoFinanciero {
-  id:             string
-  pedido_id:      string | null
-  tipo:           TipoMovimiento
-  concepto:       string
-  monto:          number
-  fecha:          string
-  registrado_por: string | null
-  created_at:     string
+  id:                   string
+  pedido_id:            string | null
+  proveedor_id:         string | null
+  acreedor_personal_id: string | null
+  banco_id:             string | null
+  tipo:                 TipoMovimiento
+  concepto:             string
+  monto:                number
+  fecha:                string
+  registrado_por:       string | null
+  created_at:           string
   // Relaciones opcionales
-  pedido?:        Pedido
-  registrador?:   Perfil
+  pedido?:              Pedido
+  registrador?:         Perfil
+}
+
+export interface Proveedor {
+  id:          string
+  nombre:      string
+  contacto:    string | null
+  email:       string | null
+  ciudad:      string | null
+  notas:       string | null
+  activo:      boolean
+  creado_por:  string | null
+  created_at:  string
+  updated_at:  string
+}
+
+export interface CreditoProveedor {
+  id:              string
+  proveedor_id:    string
+  concepto:        string
+  monto:           number
+  fecha:           string
+  registrado_por:  string | null
+  created_at:      string
+}
+
+export interface ProveedorSaldo extends Proveedor {
+  total_creditos: number
+  total_pagos:    number
+  deuda:          number
+}
+
+export type TipoDeudaPersonal = 'personal' | 'negocio'
+
+export interface AcreedorPersonal {
+  id:          string
+  nombre:      string
+  tipo:        TipoDeudaPersonal
+  contacto:    string | null
+  notas:       string | null
+  activo:      boolean
+  creado_por:  string | null
+  created_at:  string
+  updated_at:  string
+}
+
+export interface CreditoDeudaPersonal {
+  id:              string
+  acreedor_id:     string
+  concepto:        string
+  monto:           number
+  fecha:           string
+  registrado_por:  string | null
+  created_at:      string
+}
+
+export interface AcreedorPersonalSaldo extends AcreedorPersonal {
+  total_creditos: number
+  total_pagos:    number
+  deuda:          number
 }
 
 // ─── Parámetros de calculadoras ────────────────────────────────────────────��──
