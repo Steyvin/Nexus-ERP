@@ -2,12 +2,23 @@
 	import { goto, invalidateAll } from '$app/navigation'
 	import { page, navigating } from '$app/stores'
 	import { fade } from 'svelte/transition'
-	import { enhance } from '$app/forms'
+	import { enhance, deserialize } from '$app/forms'
 	import { fmt, fmtFecha, fmtRelativa } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
 	import { subirImagenComprimida } from '$lib/utils/upload'
 	import { ESTADOS_PEDIDO, ESTADO_ITEM_LABEL } from '$lib/types'
 	import type { EstadoItem, EstadoPedido } from '$lib/types'
+	import TableroPedidos from '$lib/components/pedidos/TableroPedidos.svelte'
+	import AgendaPedidos from '$lib/components/pedidos/AgendaPedidos.svelte'
+	import CalendarioPedidos from '$lib/components/pedidos/CalendarioPedidos.svelte'
+	import {
+		progresoItems,
+		progresoDisenos,
+		resumenMaterial,
+		semaforoEntrega,
+		estadoDesfasado,
+		clasePrioridad
+	} from '$lib/utils/pedidos'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
@@ -163,10 +174,50 @@
 		expandido = expandido === id ? null : id
 	}
 
-	function progreso(items: any[]): { terminados: number; total: number; pct: number } {
-		const total = items.length
-		const terminados = items.filter((i: any) => i.estado_produccion === 'terminado').length
-		return { terminados, total, pct: total > 0 ? Math.round((terminados / total) * 100) : 0 }
+	// ── Vistas: lista · tablero · agenda ──
+	const vista = $derived(data.vista ?? 'lista')
+
+	const vistasDisponibles = [
+		{ val: 'lista',      label: 'Lista',      icon: 'list' },
+		{ val: 'tablero',    label: 'Tablero',    icon: 'columns' },
+		{ val: 'agenda',     label: 'Agenda',     icon: 'rows' },
+		{ val: 'calendario', label: 'Calendario', icon: 'calendar' }
+	] as const
+
+	function cambiarVista(v: string) {
+		// El tablero usa las etapas como columnas y el calendario se acota al mes:
+		// en ambos un filtro de estado o de fechas sueltas estorba.
+		aplicarParams({
+			vista: v === 'lista' ? null : v,
+			estado: v === 'tablero' || v === 'calendario' ? null : data.filtroEstado,
+			mes: v === 'calendario' ? data.mes : null,
+			desde: v === 'calendario' ? null : data.fechaDesde,
+			hasta: v === 'calendario' ? null : data.fechaHasta
+		})
+	}
+
+	function cambiarMes(nuevoMes: string) {
+		aplicarParams({ vista: 'calendario', mes: nuevoMes })
+	}
+
+	// El tablero mueve el pedido llamando a la misma action que el select de la lista
+	async function moverPedido(pedidoId: string, estado: string) {
+		const body = new FormData()
+		body.set('pedido_id', pedidoId)
+		body.set('estado', estado)
+
+		const res = await fetch('?/cambiarEstadoPedido', { method: 'POST', body })
+		const resultado = deserialize(await res.text())
+
+		if (resultado.type === 'failure') {
+			const msg = (resultado.data as { error?: string } | undefined)?.error
+			mostrarToast(msg ?? 'No se pudo mover el pedido', 'error')
+		} else if (resultado.type === 'error') {
+			mostrarToast('No se pudo mover el pedido', 'error')
+		} else {
+			mostrarToast(`Movido a "${estado}"`)
+		}
+		await invalidateAll()
 	}
 
 	function iniciarSubirDiseno(itemId: string, urlActual: string) {
@@ -195,20 +246,52 @@
 			<h1 class="text-xl font-semibold text-[var(--text)]">Pedidos</h1>
 			<p class="mt-1 text-sm text-[var(--text-muted)]">
 				{data.total} pedido{data.total !== 1 ? 's' : ''}
-				{#if esFabricador}
+				{#if vista === 'tablero'}
+					<span class="text-[var(--text-dim)]">· arrastra para mover de etapa</span>
+				{:else if vista === 'agenda'}
+					<span class="text-[var(--text-dim)]">· entregas e instalaciones por día</span>
+				{:else if vista === 'calendario'}
+					<span class="text-[var(--text-dim)]">· con entrega o instalación este mes</span>
+				{:else if esFabricador}
 					<span class="text-[var(--text-dim)]">· ordenados por fecha de entrega</span>
 				{/if}
 			</p>
 		</div>
-		{#if esAdmin || esDiseñador || esFinanzas}
-			<a
-				href="/pedidos/nuevo"
-				class="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
-			>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-				Nuevo pedido
-			</a>
-		{/if}
+
+		<div class="flex items-center gap-2">
+			<!-- Selector de vista -->
+			<div class="flex rounded-lg border border-[var(--border)] p-0.5">
+				{#each vistasDisponibles as v}
+					<button
+						onclick={() => cambiarVista(v.val)}
+						class="vista-btn rounded-md px-2.5 py-1.5 text-xs"
+						class:vista-activa={vista === v.val}
+						title={v.label}
+					>
+						{#if v.icon === 'list'}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+						{:else if v.icon === 'columns'}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="13" rx="1"/><rect x="19" y="3" width="2" height="9" rx="1"/></svg>
+						{:else if v.icon === 'rows'}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="12" width="18" height="5" rx="1"/><line x1="3" y1="20" x2="13" y2="20"/></svg>
+						{:else}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/><line x1="8" y1="18" x2="8.01" y2="18"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+						{/if}
+						<span class="hidden sm:inline">{v.label}</span>
+					</button>
+				{/each}
+			</div>
+
+			{#if esAdmin || esDiseñador || esFinanzas}
+				<a
+					href="/pedidos/nuevo"
+					class="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
+				>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+					<span class="hidden sm:inline">Nuevo pedido</span>
+				</a>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Búsqueda y filtros -->
@@ -227,10 +310,12 @@
 				</div>
 				<button onclick={buscar} class="btn-secondary rounded-lg px-4 py-2 text-sm">Buscar</button>
 			{/if}
+			<!-- El calendario ya navega por mes: este filtro no aplica ahí -->
 			<button
 				onclick={() => (mostrarFechas = !mostrarFechas)}
 				class="btn-secondary rounded-lg px-3 py-2 text-sm"
 				class:filtro-activo={mostrarFechas || !!(data.fechaDesde || data.fechaHasta)}
+				class:hidden={vista === 'calendario'}
 				title="Filtrar por fecha"
 			>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -291,17 +376,21 @@
 			</div>
 		{/if}
 
-		<div class="flex gap-1 overflow-x-auto">
-			{#each filtrosEstado as e}
-				<button
-					onclick={() => aplicarParams({ estado: e.val })}
-					class="filtro-btn whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
-					class:filtro-activo={data.filtroEstado === e.val}
-				>
-					{e.label}
-				</button>
-			{/each}
-		</div>
+		<!-- En el tablero las etapas ya son las columnas y el calendario se acota al mes:
+		     filtrar por estado ahí los dejaría casi vacíos -->
+		{#if vista !== 'tablero' && vista !== 'calendario'}
+			<div class="flex gap-1 overflow-x-auto">
+				{#each filtrosEstado as e}
+					<button
+						onclick={() => aplicarParams({ estado: e.val })}
+						class="filtro-btn whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
+						class:filtro-activo={data.filtroEstado === e.val}
+					>
+						{e.label}
+					</button>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Barra de carga -->
@@ -311,15 +400,41 @@
 		{/if}
 	</div>
 
-	<!-- Lista de pedidos -->
+	{#if data.errorCarga}
+		<div class="mt-3 rounded-xl border border-red-500/30 bg-red-500/5 px-5 py-4 text-sm text-red-400">
+			<p class="font-medium">No se pudieron cargar los pedidos</p>
+			<p class="mt-1 text-xs opacity-80">{data.errorCarga}</p>
+		</div>
+	{:else if vista === 'tablero'}
+		<!-- ═══ Tablero: orden visual del taller ═══ -->
+		{#if data.total > data.porPagina}
+			<p class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-2 text-xs text-amber-400/90">
+				Mostrando los primeros {data.porPagina} de {data.total} pedidos. Usa la lista para ver el resto.
+			</p>
+		{/if}
+		<TableroPedidos
+			pedidos={data.pedidos}
+			{puedeVerPrecios}
+			puedeMover={esAdmin || esFabricador}
+			onMover={moverPedido}
+		/>
+	{:else if vista === 'agenda'}
+		<!-- ═══ Agenda: qué hay que entregar o instalar cada día ═══ -->
+		<AgendaPedidos pedidos={data.pedidos} {puedeVerPrecios} />
+	{:else if vista === 'calendario'}
+		<!-- ═══ Calendario: el mes completo por fecha de entrega ═══ -->
+		<CalendarioPedidos
+			pedidos={data.pedidos}
+			mes={data.mes}
+			{puedeVerPrecios}
+			onCambiarMes={cambiarMes}
+		/>
+	{:else}
+
+	<!-- ═══ Lista: detalle, búsqueda, acciones por item ═══ -->
 	{#key data.pedidos}
 	<div class="mt-3 space-y-3" in:fade={{ duration: 180 }}>
-		{#if data.errorCarga}
-			<div class="rounded-xl border border-red-500/30 bg-red-500/5 px-5 py-4 text-sm text-red-400">
-				<p class="font-medium">No se pudieron cargar los pedidos</p>
-				<p class="mt-1 text-xs opacity-80">{data.errorCarga}</p>
-			</div>
-		{:else if data.pedidos.length === 0}
+		{#if data.pedidos.length === 0}
 			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-16 text-center text-sm text-[var(--text-dim)]">
 				No hay pedidos{data.filtroEstado ? ` con estado "${data.filtroEstado}"` : ''}{data.busqueda ? ` para "${data.busqueda}"` : ''}
 			</div>
@@ -329,10 +444,17 @@
 			{@const cliente = (pedido as any).clientes}
 			{@const creador = (pedido as any).perfiles}
 			{@const items = ((pedido as any).pedido_items ?? []).sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0))}
-			{@const prog = progreso(items)}
+			{@const compras = (pedido as any).pedido_compras ?? []}
+			{@const prog = progresoItems(items)}
+			{@const mat = resumenMaterial(compras, pedido.fecha_entrega)}
+			{@const sem = semaforoEntrega(pedido.fecha_entrega, pedido.fecha_entregado, pedido.estado)}
+			{@const desfase = estadoDesfasado(pedido, items, compras)}
 			{@const isOpen = expandido === pedido.id}
 
-			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden transition-colors">
+			<div class="relative rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden transition-colors">
+				<!-- Franja de urgencia: color según cuánto falta para la entrega -->
+				<span class="absolute left-0 top-0 h-full w-[3px] {sem.punto}" aria-hidden="true"></span>
+
 				<!-- Fila principal -->
 				<button
 					onclick={() => toggleExpand(pedido.id)}
@@ -368,7 +490,53 @@
 						</a>
 					{/if}
 						</div>
-						<div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-dim)]">
+
+						<!-- Semáforo de entrega + hitos reales del pedido -->
+						<div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+							<span class="rounded border px-1.5 py-0.5 text-[10px] font-medium {sem.clase}">
+								{sem.label}
+							</span>
+
+							{#if pedido.prioridad > 0}
+								<span class="rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase {clasePrioridad(pedido.prioridad)}">
+									{pedido.prioridad === 2 ? 'Urgente' : 'Prioridad alta'}
+								</span>
+							{/if}
+
+							{#if pedido.requiere_instalacion}
+								<span
+									class="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-400"
+									title={pedido.fecha_instalacion ? `Instalación agendada: ${fmtFecha(pedido.fecha_instalacion)}` : 'Requiere instalación — sin agendar'}
+								>
+									<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+									{pedido.fecha_instalacion ? `Instala ${fmtFecha(pedido.fecha_instalacion)}` : 'Instalación sin agendar'}
+								</span>
+							{/if}
+
+							{#if mat.estado !== 'sin_registrar'}
+								<span
+									class="rounded border px-1.5 py-0.5 text-[10px] font-medium {mat.riesgo
+										? 'border-red-500/40 bg-red-500/10 text-red-400'
+										: mat.estado === 'completo'
+											? 'border-green-500/30 bg-green-500/10 text-green-400'
+											: 'border-blue-500/30 bg-blue-500/10 text-blue-400'}"
+									title={mat.riesgo ? 'El material llega después de la fecha de entrega' : mat.label}
+								>
+									📦 {mat.recibidos}/{mat.total}{mat.riesgo ? ' · llega tarde' : ''}
+								</span>
+							{/if}
+
+							{#if desfase}
+								<span
+									class="rounded border border-amber-500/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+									title="El estado guardado no coincide con el avance real de los items"
+								>
+									⚠ debería estar en "{desfase}"
+								</span>
+							{/if}
+						</div>
+
+						<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-dim)]">
 							{#if cliente?.empresa}
 								<span>{cliente.empresa}</span>
 							{/if}
@@ -377,6 +545,9 @@
 							{/if}
 							{#if pedido.fecha_entrega}
 								<span>Entrega: {fmtFecha(pedido.fecha_entrega)}</span>
+							{/if}
+							{#if pedido.direccion_entrega}
+								<span class="truncate">📍 {pedido.direccion_entrega}</span>
 							{/if}
 							<span>{fmtRelativa(pedido.created_at)}</span>
 						</div>
@@ -441,9 +612,9 @@
 								{/if}
 
 								{#if esDiseñador}
-									{@const disHechos = items.filter((i: any) => i.diseno_completado).length}
+									{@const dis = progresoDisenos(items)}
 									<span class="text-xs text-[var(--text-muted)]">
-										Diseños: <span class="font-medium text-[var(--text)]">{disHechos}/{items.length}</span>
+										Diseños: <span class="font-medium text-[var(--text)]">{dis.terminados}/{dis.total}</span>
 									</span>
 								{/if}
 
@@ -660,7 +831,8 @@
 			</div>
 		</div>
 	{/if}
-{/key}
+	{/key}
+	{/if}
 </div>
 
 <!-- Modal: Confirmar eliminación de pedido -->
@@ -839,6 +1011,23 @@
 		border-color: var(--brand) !important;
 		color: var(--brand-light) !important;
 		background: color-mix(in srgb, var(--brand) 10%, transparent);
+	}
+
+	.vista-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		color: var(--text-muted);
+		background: transparent;
+		transition: all 0.15s;
+	}
+	.vista-btn:hover {
+		color: var(--text);
+		background: var(--bg-card-2);
+	}
+	.vista-activa {
+		color: var(--brand-light) !important;
+		background: color-mix(in srgb, var(--brand) 12%, transparent) !important;
 	}
 
 	.pag-btn {

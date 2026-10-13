@@ -29,6 +29,8 @@ export type TipoProducto =
 
 export type TipoMovimiento = 'ingreso' | 'abono' | 'gasto' | 'ajuste'
 
+export type EstadoCompra = 'por_pedir' | 'pedido' | 'recibido_parcial' | 'recibido'
+
 // ─── Tablas ───────────────────────────────────────────────────────────────────
 
 export interface Perfil {
@@ -103,24 +105,33 @@ export interface CotizacionItem {
 }
 
 export interface Pedido {
-  id:            string
-  cotizacion_id: string | null
-  cliente_id:    string
-  creado_por:    string | null
-  estado:        EstadoPedido
-  precio_total:  number
-  abono:         number
-  saldo:         number   // columna generada en BD
-  fecha_entrega: string | null
-  nota:          string | null
-  imagen_url:    string | null
-  created_at:    string
-  updated_at:    string
+  id:                   string
+  cotizacion_id:        string | null
+  cliente_id:           string
+  creado_por:           string | null
+  estado:               EstadoPedido
+  precio_total:         number
+  abono:                number
+  saldo:                number   // columna generada en BD
+  fecha_entrega:        string | null
+  nota:                 string | null
+  imagen_url:           string | null
+  // Logística de entrega / instalación
+  requiere_instalacion: boolean
+  direccion_entrega:    string | null
+  fecha_instalacion:    string | null
+  fecha_entregado:      string | null
+  entregado_por:        string | null
+  foto_entrega_url:     string | null
+  prioridad:            number   // 0 normal · 1 alta · 2 urgente
+  created_at:           string
+  updated_at:           string
   // Relaciones opcionales (con join)
-  cliente?:      Cliente
-  items?:        PedidoItem[]
-  notas?:        PedidoNota[]
-  creador?:      Perfil
+  cliente?:             Cliente
+  items?:               PedidoItem[]
+  notas?:               PedidoNota[]
+  compras?:             PedidoCompra[]
+  creador?:             Perfil
 }
 
 export interface PedidoItem {
@@ -151,6 +162,47 @@ export interface PedidoNota {
   created_at: string
   // Relaciones opcionales
   autor?:     Perfil
+}
+
+export interface Proveedor {
+  id:          string
+  nombre:      string
+  contacto:    string | null
+  email:       string | null
+  ciudad:      string | null
+  materiales:  string | null
+  notas:       string | null
+  activo:      boolean
+  created_at:  string
+  updated_at:  string
+}
+
+export interface PedidoCompra {
+  id:              string
+  pedido_id:       string
+  pedido_item_id:  string | null
+  proveedor_id:    string | null
+  material:        string
+  cantidad:        string | null
+  costo_real:      number
+  estado:          EstadoCompra
+  fecha_pedido:    string | null
+  fecha_estimada:  string | null
+  fecha_recibido:  string | null
+  notas:           string | null
+  registrado_por:  string | null
+  created_at:      string
+  updated_at:      string
+  // Relaciones opcionales
+  proveedor?:      Proveedor
+}
+
+export interface PedidoEvento {
+  id:         number
+  pedido_id:  string
+  etapa:      string
+  usuario_id: string | null
+  created_at: string
 }
 
 export interface MovimientoFinanciero {
@@ -289,4 +341,24 @@ export const ESTADO_ITEM_LABEL: Record<EstadoItem, string> = {
   pendiente:       'Pendiente',
   en_fabricacion:  'En fabricación',
   terminado:       'Terminado'
+}
+
+export const ESTADO_COMPRA_LABEL: Record<EstadoCompra, string> = {
+  por_pedir:        'Por pedir',
+  pedido:           'Pedido al proveedor',
+  recibido_parcial: 'Recibido parcial',
+  recibido:         'Recibido'
+}
+
+export const ESTADOS_COMPRA: EstadoCompra[] = [
+  'por_pedir',
+  'pedido',
+  'recibido_parcial',
+  'recibido'
+]
+
+export const PRIORIDAD_LABEL: Record<number, string> = {
+  0: 'Normal',
+  1: 'Alta',
+  2: 'Urgente'
 }

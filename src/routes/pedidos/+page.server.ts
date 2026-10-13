@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema, marcarDisenoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemSchema, cambiarEstadoPedidoSchema, subirDisenoSchema, asignarItemSchema, eliminarPedidoSchema, marcarDisenoSchema, cambiarPrioridadSchema, marcarEntregadoSchema } from '$lib/utils/validate'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -15,7 +15,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const fechaHasta = url.searchParams.get('hasta')
 	const tipofecha = url.searchParams.get('tipofecha') === 'fecha_entrega' ? 'fecha_entrega' : 'created_at'
 	const pagina = Math.max(1, Number(url.searchParams.get('p')) || 1)
-	const porPagina = 20
+
+	// Vista: lista (detalle y búsqueda) · tablero (orden visual del taller)
+	//        agenda (planear la semana) · calendario (el mes completo)
+	const vistaParam = url.searchParams.get('vista')
+	const vista: 'lista' | 'tablero' | 'agenda' | 'calendario' =
+		vistaParam === 'tablero' || vistaParam === 'agenda' || vistaParam === 'calendario'
+			? vistaParam
+			: 'lista'
+
+	// Mes visible en el calendario (YYYY-MM)
+	const mesParam = url.searchParams.get('mes')
+	const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(mesParam ?? '') ? (mesParam as string) : mesActual()
+
+	// El tablero, la agenda y el calendario necesitan ver todo de una, no 20 por página
+	const porPagina = vista === 'lista' ? 20 : 300
 
 	// Fabricador: ordenar por fecha de entrega; otros: por fecha de creación
 	const ordenCampo = rol === 'fabricador' ? 'fecha_entrega' : 'created_at'
@@ -25,24 +39,45 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		.from('pedidos')
 		.select(
 			`id, estado, precio_total, abono, saldo, fecha_entrega, nota, imagen_url, created_at,
-			 clientes(id, nombre, empresa, contacto),
+			 requiere_instalacion, direccion_entrega, fecha_instalacion, fecha_entregado, prioridad,
+			 clientes!inner(id, nombre, empresa, contacto),
 			 perfiles!pedidos_creado_por_fkey(nombre),
-			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, diseno_completado, notas_produccion, orden)`,
+			 pedido_items(id, tipo, tipo_label, descripcion, precio_fabricacion, precio_cliente, estado_produccion, asignado_a, archivo_diseno_url, diseno_completado, notas_produccion, orden),
+			 pedido_compras(id, material, cantidad, estado, fecha_estimada, fecha_recibido, costo_real, proveedor_id, proveedores(id, nombre, contacto))`,
 			{ count: 'exact' }
 		)
 		.order(ordenCampo, { ascending: ordenAsc, nullsFirst: false })
 
-	if (filtroEstado) {
+	if (vista === 'calendario') {
+		// El calendario trae el mes completo sin importar el estado: los ya entregados
+		// también deben verse en su día. Un pedido puede caer en el mes por la fecha
+		// de entrega o por la de instalación.
+		const { inicio, fin } = rangoMes(mes)
+		query = query.or(
+			`and(fecha_entrega.gte.${inicio},fecha_entrega.lte.${fin}),` +
+				`and(fecha_instalacion.gte.${inicio},fecha_instalacion.lte.${fin})`
+		)
+	} else if (filtroEstado) {
 		if (filtroEstado !== 'Todos') {
 			query = query.eq('estado', filtroEstado)
 		}
-	} else {
+	} else if (vista === 'lista') {
 		// Por defecto no mostrar los terminados ni entregados
 		query = query.not('estado', 'in', '("Terminado","Entregado")')
+	} else {
+		// El tablero necesita la columna "Terminado"; "Entregado" solo lo reciente
+		query = query.or('estado.neq.Entregado,fecha_entregado.gte.' + haceDias(30))
 	}
+
+	// `clientes!inner` es lo que hace que este filtro descarte filas en la BD.
+	// Sin el !inner PostgREST solo vacía el embed y la paginación quedaba mal.
 	if (busqueda) query = query.ilike('clientes.nombre', `%${busqueda}%`)
-	if (fechaDesde) query = query.gte(tipofecha, fechaDesde)
-	if (fechaHasta) query = query.lte(tipofecha, `${fechaHasta}T23:59:59`)
+
+	// Los filtros de fecha sueltos no aplican al calendario: ya está acotado al mes
+	if (vista !== 'calendario') {
+		if (fechaDesde) query = query.gte(tipofecha, fechaDesde)
+		if (fechaHasta) query = query.lte(tipofecha, `${fechaHasta}T23:59:59`)
+	}
 
 	const desde = (pagina - 1) * porPagina
 	query = query.range(desde, desde + porPagina - 1)
@@ -52,10 +87,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (pedidosError) {
 		console.error('[pedidos.load] Error al consultar pedidos:', pedidosError)
 	}
-
-	const filtrados = busqueda
-		? (pedidos ?? []).filter((p: any) => p.clientes !== null)
-		: (pedidos ?? [])
 
 	// Cargar perfiles para asignación (admin necesita asignar items)
 	let perfiles: any[] = []
@@ -69,10 +100,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	return {
-		pedidos: filtrados,
-		total: busqueda ? filtrados.length : (count ?? 0),
+		pedidos: pedidos ?? [],
+		total: count ?? 0,
 		pagina,
 		porPagina,
+		vista,
+		mes,
 		filtroEstado,
 		busqueda,
 		fechaDesde,
@@ -83,6 +116,32 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		perfiles,
 		errorCarga: pedidosError?.message ?? null
 	}
+}
+
+/** Fecha YYYY-MM-DD de hace N días (para acotar los pedidos ya entregados) */
+function haceDias(n: number): string {
+	const d = new Date()
+	d.setDate(d.getDate() - n)
+	return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Mes actual en Colombia (UTC-5, sin horario de verano).
+ * El servidor corre en UTC: sin el ajuste, entre las 7pm y medianoche del último
+ * día del mes el calendario abriría en el mes siguiente.
+ */
+function mesActual(): string {
+	const ahora = new Date(Date.now() - 5 * 60 * 60 * 1000)
+	return `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/** Primer y último día de un mes YYYY-MM, en formato YYYY-MM-DD */
+function rangoMes(mes: string): { inicio: string; fin: string } {
+	const anio = Number(mes.slice(0, 4))
+	const num = Number(mes.slice(5, 7))
+	const ultimo = new Date(Date.UTC(anio, num, 0)).getUTCDate()
+	const mm = String(num).padStart(2, '0')
+	return { inicio: `${mes}-01`, fin: `${anio}-${mm}-${String(ultimo).padStart(2, '0')}` }
 }
 
 export const actions: Actions = {
@@ -139,6 +198,68 @@ export const actions: Actions = {
 			usuario_id: usuario.id,
 			usuario_nombre: usuario.nombre,
 			detalles: { nuevo_estado: datos.estado }
+		})
+
+		return { success: true }
+	},
+
+	// Cambiar prioridad del pedido (solo admin) — ordena el tablero
+	cambiarPrioridad: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || usuario.rol !== 'admin') {
+			return fail(403, { error: 'Solo el administrador puede cambiar la prioridad' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(cambiarPrioridadSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase
+			.from('pedidos')
+			.update({ prioridad: datos.prioridad })
+			.eq('id', datos.pedido_id)
+
+		if (error) return fail(500, { error: 'Error al cambiar la prioridad' })
+		return { success: true }
+	},
+
+	// Marcar el pedido como entregado (admin o fabricador) — cierra el flujo
+	marcarEntregado: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'fabricador')) {
+			return fail(403, { error: 'Sin permisos para marcar la entrega' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(marcarEntregadoSchema, form)
+		if (esError(datos)) return datos
+
+		const cambios = datos.deshacer
+			? { estado: 'Terminado', fecha_entregado: null, entregado_por: null, foto_entrega_url: null }
+			: {
+					estado: 'Entregado',
+					fecha_entregado: new Date().toISOString(),
+					entregado_por: usuario.id,
+					foto_entrega_url: datos.foto_entrega_url || null
+				}
+
+		const { data: actualizados, error } = await locals.supabase
+			.from('pedidos')
+			.update(cambios)
+			.eq('id', datos.pedido_id)
+			.select('id')
+
+		if (error) return fail(500, { error: 'Error BD: ' + error.message })
+		if (!actualizados || actualizados.length === 0) {
+			return fail(403, { error: 'No se pudo actualizar el pedido (permisos de base de datos)' })
+		}
+
+		await registrarAudit(locals.supabase, {
+			accion: datos.deshacer ? 'deshacer_entrega' : 'marcar_entregado',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
 		})
 
 		return { success: true }

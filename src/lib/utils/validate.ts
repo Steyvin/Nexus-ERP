@@ -43,7 +43,7 @@ const numeroPositivo = z.coerce.number().min(0, 'Debe ser positivo')
 export const cambiarEstadoItemSchema = z.object({
 	item_id: uuid,
 	estado: z.enum(['pendiente', 'en_fabricacion', 'terminado'], {
-		errorMap: () => ({ message: 'Estado de producción inválido' })
+		message: 'Estado de producción inválido'
 	})
 })
 
@@ -52,7 +52,7 @@ export const cambiarEstadoPedidoSchema = z.object({
 	estado: z.enum([
 		'Pedido realizado', 'En proceso', 'Enviado a proveedor',
 		'En fabricación', 'Terminado', 'Entregado'
-	], { errorMap: () => ({ message: 'Estado de pedido inválido' }) })
+	], { message: 'Estado de pedido inválido' })
 })
 
 export const subirDisenoSchema = z.object({
@@ -86,7 +86,73 @@ export const agregarNotaSchema = z.object({
 export const actualizarPedidoSchema = z.object({
 	pedido_id: uuid,
 	fecha_entrega: textoOpcional,
-	nota: textoOpcional
+	nota: textoOpcional,
+	requiere_instalacion: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+	direccion_entrega: textoOpcional,
+	fecha_instalacion: textoOpcional,
+	prioridad: z.coerce.number().int().min(0).max(2).default(0)
+})
+
+// ── Entrega / instalación ─────────────────────────────────────────────────────
+
+export const cambiarPrioridadSchema = z.object({
+	pedido_id: uuid,
+	prioridad: z.coerce.number().int().min(0).max(2)
+})
+
+export const marcarEntregadoSchema = z.object({
+	pedido_id: uuid,
+	foto_entrega_url: z.string().max(2000).optional().default(''),
+	deshacer: z.enum(['true', 'false']).default('false').transform((v) => v === 'true')
+})
+
+// ── Compras de material ───────────────────────────────────────────────────────
+
+const estadoCompra = z.enum(['por_pedir', 'pedido', 'recibido_parcial', 'recibido'], {
+	message: 'Estado de compra inválido'
+})
+
+export const crearCompraSchema = z.object({
+	pedido_id: uuid,
+	pedido_item_id: z.string().uuid().or(z.literal('')).optional().default(''),
+	proveedor_id: z.string().uuid().or(z.literal('')).optional().default(''),
+	material: textoRequerido,
+	cantidad: textoOpcional,
+	costo_real: numeroPositivo.default(0),
+	estado: estadoCompra.default('por_pedir'),
+	fecha_pedido: textoOpcional,
+	fecha_estimada: textoOpcional,
+	notas: textoOpcional
+})
+
+// Campo numérico que puede llegar vacío: vacío = no tocar el valor guardado
+const numeroOpcional = z.string().optional().transform((v) => {
+	if (v === undefined || v.trim() === '') return undefined
+	const n = Number(v)
+	return Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined
+})
+
+export const actualizarCompraSchema = z.object({
+	pedido_id: uuid,
+	compra_id: uuid,
+	estado: estadoCompra,
+	costo_real: numeroOpcional,
+	fecha_estimada: textoOpcional
+})
+
+export const eliminarCompraSchema = z.object({
+	pedido_id: uuid,
+	compra_id: uuid
+})
+
+// ── Proveedores ───────────────────────────────────────────────────────────────
+
+export const crearProveedorSchema = z.object({
+	nombre: textoRequerido,
+	contacto: textoOpcional,
+	ciudad: textoOpcional,
+	materiales: textoOpcional,
+	notas: textoOpcional
 })
 
 export const añadirAbonoSchema = z.object({
@@ -188,7 +254,7 @@ export const actualizarTotalCotSchema = z.object({
 export const cambiarEstadoCotSchema = z.object({
 	id: uuid,
 	estado: z.enum(['pendiente', 'aprobada', 'convertida', 'cancelada'], {
-		errorMap: () => ({ message: 'Estado de cotización inválido' })
+		message: 'Estado de cotización inválido'
 	})
 })
 
@@ -209,14 +275,14 @@ export const crearUsuarioSchema = z.object({
 	email: z.string().email('Email inválido'),
 	clave: z.string().min(6, 'La contraseña debe tener mínimo 6 caracteres'),
 	rol: z.enum(['admin', 'fabricador', 'diseñador', 'finanzas'], {
-		errorMap: () => ({ message: 'Rol inválido' })
+		message: 'Rol inválido'
 	})
 })
 
 export const cambiarRolSchema = z.object({
 	user_id: uuid,
 	rol: z.enum(['admin', 'fabricador', 'diseñador', 'finanzas'], {
-		errorMap: () => ({ message: 'Rol inválido' })
+		message: 'Rol inválido'
 	})
 })
 

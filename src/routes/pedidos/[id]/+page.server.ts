@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, añadirAbonoSchema, marcarDisenoSchema, agregarAbonoSchema, eliminarAbonoSchema } from '$lib/utils/validate'
+import { parseForm, esError, cambiarEstadoItemDetalleSchema, cambiarEstadoPedidoDetalleSchema, subirDisenoDetalleSchema, asignarItemDetalleSchema, agregarNotaSchema, actualizarPedidoSchema, añadirAbonoSchema, marcarDisenoSchema, agregarAbonoSchema, eliminarAbonoSchema, crearCompraSchema, actualizarCompraSchema, eliminarCompraSchema, crearProveedorSchema, marcarEntregadoSchema } from '$lib/utils/validate'
+import { ESTADO_COMPRA_LABEL } from '$lib/types'
 import { registrarAudit } from '$lib/utils/audit'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -15,7 +16,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			clientes(id, nombre, empresa, contacto, email, ciudad),
 			perfiles!pedidos_creado_por_fkey(nombre, rol),
 			pedido_items(*, perfiles!pedido_items_asignado_a_fkey(nombre, rol)),
-			pedido_notas(*, perfiles!pedido_notas_autor_id_fkey(nombre))
+			pedido_notas(*, perfiles!pedido_notas_autor_id_fkey(nombre)),
+			pedido_compras(*, proveedores(id, nombre, contacto))
 		`)
 		.eq('id', params.id)
 		.single()
@@ -28,6 +30,16 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const notas = (pedido.pedido_notas ?? []).sort(
 		(a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 	)
+	const compras = (pedido.pedido_compras ?? []).sort(
+		(a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+	)
+
+	// Proveedores para el selector de compras (el fabricador también los ve)
+	const { data: proveedores } = await supabase
+		.from('proveedores')
+		.select('id, nombre, contacto, materiales')
+		.eq('activo', true)
+		.order('nombre')
 
 	// Perfiles para asignación (admin)
 	let perfiles: any[] = []
@@ -62,10 +74,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	}
 
 	return {
-		pedido: { ...pedido, pedido_items: items, pedido_notas: notas },
+		pedido: { ...pedido, pedido_items: items, pedido_notas: notas, pedido_compras: compras },
 		rol,
 		userId: usuario?.id ?? null,
 		perfiles,
+		proveedores: proveedores ?? [],
 		abonos,
 		bancos
 	}
@@ -282,7 +295,12 @@ export const actions: Actions = {
 			.from('pedidos')
 			.update({
 				fecha_entrega: datos.fecha_entrega || null,
-				nota: datos.nota || null
+				nota: datos.nota || null,
+				requiere_instalacion: datos.requiere_instalacion,
+				direccion_entrega: datos.direccion_entrega || null,
+				// Si ya no requiere instalación, la fecha agendada deja de tener sentido
+				fecha_instalacion: datos.requiere_instalacion ? datos.fecha_instalacion || null : null,
+				prioridad: datos.prioridad
 			})
 			.eq('id', datos.pedido_id)
 
@@ -302,6 +320,186 @@ export const actions: Actions = {
 			usuario_id: usuario.id,
 			usuario_nombre: usuario.nombre,
 			detalles: { fecha_entrega: datos.fecha_entrega }
+		})
+
+		return { success: true }
+	},
+
+	// ── MATERIAL / COMPRAS A PROVEEDOR ────────────────────────────────────────
+
+	// Registrar material que hay que comprar (admin o finanzas)
+	crearCompra: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para registrar material' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(crearCompraSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase.from('pedido_compras').insert({
+			pedido_id: datos.pedido_id,
+			pedido_item_id: datos.pedido_item_id || null,
+			proveedor_id: datos.proveedor_id || null,
+			material: datos.material,
+			cantidad: datos.cantidad || null,
+			costo_real: Math.round(datos.costo_real),
+			estado: datos.estado,
+			fecha_pedido: datos.fecha_pedido || null,
+			fecha_estimada: datos.fecha_estimada || null,
+			notas: datos.notas || null,
+			registrado_por: usuario.id
+		})
+
+		if (error) return fail(500, { error: 'Error al registrar material: ' + error.message })
+
+		await registrarCambio(
+			locals.supabase,
+			datos.pedido_id,
+			usuario.id,
+			`[Material] "${datos.material}" registrado como ${ESTADO_COMPRA_LABEL[datos.estado]}`
+		)
+
+		return { success: true }
+	},
+
+	// Cambiar estado de una compra (admin, finanzas o fabricador que recibe)
+	actualizarCompra: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || !['admin', 'finanzas', 'fabricador'].includes(usuario.rol)) {
+			return fail(403, { error: 'Sin permisos para actualizar material' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(actualizarCompraSchema, form)
+		if (esError(datos)) return datos
+
+		const cambios: Record<string, unknown> = { estado: datos.estado }
+
+		// Las fechas se completan solas según el estado: menos campos que llenar a mano
+		if (datos.estado === 'pedido') cambios.fecha_pedido = new Date().toISOString().slice(0, 10)
+		if (datos.estado === 'recibido') cambios.fecha_recibido = new Date().toISOString().slice(0, 10)
+		if (datos.estado === 'por_pedir') {
+			cambios.fecha_pedido = null
+			cambios.fecha_recibido = null
+		}
+		if (datos.fecha_estimada !== undefined && datos.fecha_estimada !== '') {
+			cambios.fecha_estimada = datos.fecha_estimada
+		}
+		// El costo real solo lo toca quien ve plata
+		if (datos.costo_real !== undefined && (usuario.rol === 'admin' || usuario.rol === 'finanzas')) {
+			cambios.costo_real = Math.round(datos.costo_real)
+		}
+
+		const { data: compra, error } = await locals.supabase
+			.from('pedido_compras')
+			.update(cambios)
+			.eq('id', datos.compra_id)
+			.eq('pedido_id', datos.pedido_id)
+			.select('material')
+			.single()
+
+		if (error) return fail(500, { error: 'Error al actualizar material: ' + error.message })
+
+		await registrarCambio(
+			locals.supabase,
+			datos.pedido_id,
+			usuario.id,
+			`[Material] "${compra?.material ?? 'Material'}" → ${ESTADO_COMPRA_LABEL[datos.estado]}`
+		)
+
+		return { success: true }
+	},
+
+	// Eliminar una compra registrada (admin o finanzas)
+	eliminarCompra: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para eliminar material' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(eliminarCompraSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase
+			.from('pedido_compras')
+			.delete()
+			.eq('id', datos.compra_id)
+			.eq('pedido_id', datos.pedido_id)
+
+		if (error) return fail(500, { error: 'Error al eliminar material' })
+		return { success: true }
+	},
+
+	// Crear proveedor sin salir del pedido (admin o finanzas)
+	crearProveedor: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'finanzas')) {
+			return fail(403, { error: 'Sin permisos para crear proveedores' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(crearProveedorSchema, form)
+		if (esError(datos)) return datos
+
+		const { error } = await locals.supabase.from('proveedores').insert({
+			nombre: datos.nombre,
+			contacto: datos.contacto || null,
+			ciudad: datos.ciudad || null,
+			materiales: datos.materiales || null,
+			notas: datos.notas || null
+		})
+
+		if (error) return fail(500, { error: 'Error al crear proveedor: ' + error.message })
+		return { success: true }
+	},
+
+	// ── ENTREGA ───────────────────────────────────────────────────────────────
+
+	// Cerrar el pedido con evidencia de entrega (admin o fabricador)
+	marcarEntregado: async ({ request, locals }) => {
+		const usuario = await locals.getUsuario()
+		if (!usuario || (usuario.rol !== 'admin' && usuario.rol !== 'fabricador')) {
+			return fail(403, { error: 'Sin permisos para marcar la entrega' })
+		}
+
+		const form = await request.formData()
+		const datos = parseForm(marcarEntregadoSchema, form)
+		if (esError(datos)) return datos
+
+		const cambios = datos.deshacer
+			? { estado: 'Terminado', fecha_entregado: null, entregado_por: null, foto_entrega_url: null }
+			: {
+					estado: 'Entregado',
+					fecha_entregado: new Date().toISOString(),
+					entregado_por: usuario.id,
+					foto_entrega_url: datos.foto_entrega_url || null
+				}
+
+		const { error } = await locals.supabase
+			.from('pedidos')
+			.update(cambios)
+			.eq('id', datos.pedido_id)
+
+		if (error) return fail(500, { error: 'Error BD: ' + error.message })
+
+		await registrarCambio(
+			locals.supabase,
+			datos.pedido_id,
+			usuario.id,
+			datos.deshacer
+				? '[Entrega] Entrega deshecha, el pedido vuelve a Terminado'
+				: `[Entrega] Pedido entregado${datos.foto_entrega_url ? ' (con foto de evidencia)' : ''}`
+		)
+
+		await registrarAudit(locals.supabase, {
+			accion: datos.deshacer ? 'deshacer_entrega' : 'marcar_entregado',
+			tabla: 'pedidos',
+			registro_id: datos.pedido_id,
+			usuario_id: usuario.id,
+			usuario_nombre: usuario.nombre
 		})
 
 		return { success: true }

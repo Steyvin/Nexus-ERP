@@ -23,6 +23,7 @@
 	const navAdmin: NavItem[] = [
 		{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 		{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
+		{ href: '/material', label: 'Material', icon: 'truck' },
 		{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
 		{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 		{ href: '/clientes', label: 'Clientes', icon: 'users' },
@@ -40,7 +41,8 @@
 		if (rol === 'fabricador')
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
-				{ href: '/pedidos', label: 'Pedidos', icon: 'package' }
+				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
+				{ href: '/material', label: 'Material', icon: 'truck' }
 			]
 		if (rol === 'diseñador')
 			return [
@@ -52,6 +54,7 @@
 			return [
 				{ href: '/dashboard', label: 'Dashboard', icon: 'grid' },
 				{ href: '/pedidos', label: 'Pedidos', icon: 'package' },
+				{ href: '/material', label: 'Material', icon: 'truck' },
 				{ href: '/cotizaciones', label: 'Cotizaciones', icon: 'file-text' },
 				{ href: '/calculadoras', label: 'Calculadoras', icon: 'calculator' },
 				{ href: '/clientes', label: 'Clientes', icon: 'users' },
@@ -250,6 +253,24 @@
 										x2="18"
 										y2="4"
 									/><line x1="6" y1="20" x2="6" y2="16" /></svg
+								>
+							{:else if item.icon === 'truck'}
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><rect x="1" y="3" width="15" height="13" /><polygon
+										points="16 8 20 8 23 11 23 16 16 16 16 8"
+									/><circle cx="5.5" cy="18.5" r="2.5" /><circle
+										cx="18.5"
+										cy="18.5"
+										r="2.5"
+									/></svg
 								>
 							{/if}
 						</span>

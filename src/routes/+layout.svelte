@@ -46,6 +46,14 @@
 	let isAuthed = $derived(!!data.session)
 	let showShell = $derived(isAuthed && !isLogin)
 
+	// El tablero Kanban y el calendario necesitan todo el ancho: con max-w-7xl
+	// las columnas se comprimen y obligan a hacer scroll en monitores grandes.
+	const VISTAS_ANCHAS = ['tablero', 'calendario']
+	let anchoCompleto = $derived(
+		($page.url.pathname as string) === '/pedidos' &&
+		VISTAS_ANCHAS.includes($page.url.searchParams.get('vista') ?? '')
+	)
+
 	const rolColor: Record<string, string> = {
 		admin:      'bg-purple-500/15 text-purple-400 border-purple-500/30',
 		fabricador: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
@@ -64,7 +72,7 @@
 	<Header />
 	<InactivityGuard />
 	<main class="min-h-dvh bg-[var(--bg)] pt-14 lg:pl-[260px]">
-		<div class="mx-auto max-w-7xl p-4 sm:p-6">
+		<div class="mx-auto p-4 sm:p-6 {anchoCompleto ? 'max-w-none' : 'max-w-7xl'}">
 			{#if $usuario}
 				<div class="mb-4 flex items-center gap-2">
 					<span class="text-sm text-[var(--text-muted)]">Hola, <span class="font-medium text-[var(--text)]">{$usuario.nombre}</span></span>

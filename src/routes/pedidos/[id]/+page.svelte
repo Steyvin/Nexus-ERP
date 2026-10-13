@@ -4,8 +4,9 @@
 	import { fmt, fmtFecha, fmtRelativa } from '$lib/utils/format'
 	import { mostrarToast } from '$lib/stores/ui'
 	import { subirImagenComprimida } from '$lib/utils/upload'
-	import { ESTADOS_PEDIDO, ESTADO_ITEM_LABEL } from '$lib/types'
-	import type { EstadoItem } from '$lib/types'
+	import { ESTADOS_PEDIDO, ESTADO_ITEM_LABEL, ESTADOS_COMPRA, ESTADO_COMPRA_LABEL } from '$lib/types'
+	import type { EstadoItem, EstadoCompra } from '$lib/types'
+	import { semaforoEntrega, resumenMaterial, estadoDesfasado, diasHasta } from '$lib/utils/pedidos'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
@@ -15,6 +16,8 @@
 	const creador = $derived((ped as any).perfiles)
 	const items = $derived((ped as any).pedido_items ?? [])
 	const notas = $derived((ped as any).pedido_notas ?? [])
+	const compras = $derived((ped as any).pedido_compras ?? [])
+	const proveedores = $derived(data.proveedores ?? [])
 
 	const esAdmin = $derived(data.rol === 'admin')
 	const esFinanzas = $derived(data.rol === 'finanzas')
@@ -37,6 +40,28 @@
 	const pctDisenos = $derived(items.length > 0 ? Math.round((disenosHechos / items.length) * 100) : 0)
 	const ganancia = $derived(totalCliente - costoFab)
 	const margenPct = $derived(totalCliente > 0 ? Math.round((ganancia / totalCliente) * 100) : 0)
+
+	// ── Entrega, instalación y material ──
+	const sem = $derived(semaforoEntrega(ped.fecha_entrega, ped.fecha_entregado, ped.estado))
+	const semInstalacion = $derived(
+		ped.requiere_instalacion ? semaforoEntrega(ped.fecha_instalacion, ped.fecha_entregado, ped.estado) : null
+	)
+	const mat = $derived(resumenMaterial(compras, ped.fecha_entrega))
+	const desfase = $derived(estadoDesfasado(ped, items, compras))
+	const entregado = $derived(!!ped.fecha_entregado || ped.estado === 'Entregado')
+	const listoParaEntregar = $derived(items.length > 0 && pctProgreso === 100 && !entregado)
+
+	// Costo real del material comprado vs. lo que estimó la calculadora
+	const costoMaterialReal = $derived(
+		compras.reduce((s: number, c: any) => s + Number(c.costo_real ?? 0), 0)
+	)
+
+	const compraEstadoColor: Record<string, string> = {
+		por_pedir:        'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+		pedido:           'bg-purple-500/15 text-purple-400 border-purple-500/30',
+		recibido_parcial: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+		recibido:         'bg-green-500/15 text-green-400 border-green-500/30'
+	}
 
 	const estadoColor: Record<string, string> = {
 		'Pedido realizado': 'bg-yellow-500/15 text-yellow-400',
@@ -61,6 +86,38 @@
 	let editandoInfo = $state(false)
 	let editFechaEntrega = $state('')
 	let editNota = $state('')
+	let editRequiereInstalacion = $state(false)
+	let editDireccion = $state('')
+	let editFechaInstalacion = $state('')
+	let editPrioridad = $state(0)
+
+	// Material: alta de compras y de proveedores
+	let agregandoMaterial = $state(false)
+	let matMaterial = $state('')
+	let matCantidad = $state('')
+	let matProveedor = $state('')
+	let matItem = $state('')
+	let matCosto = $state(0)
+	let matEstado = $state<EstadoCompra>('por_pedir')
+	let matFechaEstimada = $state('')
+	let creandoProveedor = $state(false)
+	let provNombre = $state('')
+	let provContacto = $state('')
+	let provMateriales = $state('')
+
+	// Entrega
+	let confirmandoEntrega = $state(false)
+	let fotoEntrega = $state('')
+
+	function limpiarMaterial() {
+		matMaterial = ''
+		matCantidad = ''
+		matProveedor = ''
+		matItem = ''
+		matCosto = 0
+		matEstado = 'por_pedir'
+		matFechaEstimada = ''
+	}
 
 	let anadiendoAbono = $state(false)
 	let nuevoMontoAbono = $state(0)
@@ -77,21 +134,41 @@
 		if (!editandoInfo) {
 			editFechaEntrega = ped.fecha_entrega ?? ''
 			editNota = ped.nota ?? ''
+			editRequiereInstalacion = !!ped.requiere_instalacion
+			editDireccion = ped.direccion_entrega ?? ''
+			editFechaInstalacion = ped.fecha_instalacion ?? ''
+			editPrioridad = Number(ped.prioridad ?? 0)
 		}
 	})
 
 	// Detectar tipo de nota para iconos en el timeline
-	function tipoNota(contenido: string): 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'abono' | 'nota' {
+	type TipoNota = 'estado' | 'diseno' | 'asignacion' | 'edicion' | 'abono' | 'material' | 'entrega' | 'nota'
+
+	function tipoNota(contenido: string): TipoNota {
 		if (contenido.startsWith('[Estado]')) return 'estado'
 		if (contenido.startsWith('[Diseño]')) return 'diseno'
 		if (contenido.startsWith('[Asignación]')) return 'asignacion'
 		if (contenido.startsWith('[Edición]')) return 'edicion'
 		if (contenido.startsWith('[Abono]')) return 'abono'
+		if (contenido.startsWith('[Material]')) return 'material'
+		if (contenido.startsWith('[Entrega]')) return 'entrega'
 		return 'nota'
 	}
 
 	function limpiarPrefijo(contenido: string): string {
-		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición|Abono)\]\s*/, '')
+		return contenido.replace(/^\[(Estado|Diseño|Asignación|Edición|Abono|Material|Entrega)\]\s*/, '')
+	}
+
+	// Colores del timeline por tipo de nota
+	const notaEstilo: Record<TipoNota, { halo: string; punto: string; chip: string; label: string }> = {
+		estado:     { halo: 'bg-blue-500/20',   punto: 'bg-blue-400',   chip: 'bg-blue-500/10 text-blue-400',     label: 'Estado' },
+		diseno:     { halo: 'bg-purple-500/20', punto: 'bg-purple-400', chip: 'bg-purple-500/10 text-purple-400', label: 'Diseño' },
+		asignacion: { halo: 'bg-orange-500/20', punto: 'bg-orange-400', chip: 'bg-orange-500/10 text-orange-400', label: 'Asignación' },
+		edicion:    { halo: 'bg-yellow-500/20', punto: 'bg-yellow-400', chip: 'bg-yellow-500/10 text-yellow-400', label: 'Edición' },
+		abono:      { halo: 'bg-green-500/20',  punto: 'bg-green-400',  chip: 'bg-green-500/10 text-green-400',   label: 'Abono' },
+		material:   { halo: 'bg-amber-500/20',  punto: 'bg-amber-400',  chip: 'bg-amber-500/10 text-amber-400',   label: 'Material' },
+		entrega:    { halo: 'bg-cyan-500/20',   punto: 'bg-cyan-400',   chip: 'bg-cyan-500/10 text-cyan-400',     label: 'Entrega' },
+		nota:       { halo: 'bg-[var(--bg-card-2)]', punto: 'bg-[var(--text-dim)]', chip: '', label: 'Nota' }
 	}
 </script>
 
@@ -107,11 +184,25 @@
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
 			</a>
 			<div>
-				<div class="flex items-center gap-3">
+				<div class="flex flex-wrap items-center gap-2">
 					<h1 class="text-xl font-semibold text-[var(--text)]">Pedido</h1>
 					<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {estadoColor[ped.estado] ?? ''}">
 						{ped.estado}
 					</span>
+					<span class="rounded border px-2 py-0.5 text-[11px] font-medium {sem.clase}">
+						{sem.label}
+					</span>
+					{#if Number(ped.prioridad ?? 0) > 0}
+						<span class="rounded border px-2 py-0.5 text-[10px] font-semibold uppercase {Number(ped.prioridad) === 2 ? 'border-red-500/40 bg-red-500/15 text-red-400' : 'border-orange-500/35 bg-orange-500/15 text-orange-400'}">
+							{Number(ped.prioridad) === 2 ? 'Urgente' : 'Prioridad alta'}
+						</span>
+					{/if}
+					{#if desfase}
+						<span
+							class="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400"
+							title="El estado guardado no coincide con el avance real de los items"
+						>⚠ debería estar en "{desfase}"</span>
+					{/if}
 				</div>
 				<p class="mt-0.5 text-xs text-[var(--text-dim)]">
 					{fmtFecha(ped.created_at)}{#if creador} · {creador.nombre}{/if}
@@ -152,12 +243,39 @@
 			<p class="text-[10px] text-[var(--text-dim)]">Fecha de pedido</p>
 			<p class="mt-0.5 text-sm font-medium text-[var(--text)]">{fmtFecha(ped.created_at)}</p>
 		</div>
-		<!-- Fecha entrega -->
+		<!-- Fecha entrega + instalación -->
 		<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
-			<p class="text-[10px] text-[var(--text-dim)]">Fecha de entrega</p>
+			<div class="flex items-center justify-between gap-2">
+				<p class="text-[10px] text-[var(--text-dim)]">Fecha de entrega</p>
+				<span class="h-1.5 w-1.5 shrink-0 rounded-full {sem.punto}"></span>
+			</div>
 			<p class="mt-0.5 text-sm font-medium {ped.fecha_entrega ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'}">
 				{ped.fecha_entrega ? fmtFecha(ped.fecha_entrega) : 'Sin definir'}
 			</p>
+			<p class="mt-0.5 text-[10px] {sem.nivel === 'vencido' || sem.nivel === 'hoy' ? 'text-red-400' : sem.nivel === 'urgente' ? 'text-amber-400' : 'text-[var(--text-dim)]'}">
+				{sem.label}
+			</p>
+
+			{#if ped.requiere_instalacion}
+				<div class="mt-2 border-t border-[var(--border)] pt-2">
+					<p class="flex items-center gap-1 text-[10px] text-cyan-400">
+						<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+						Requiere instalación
+					</p>
+					<p class="mt-0.5 text-xs {ped.fecha_instalacion ? 'text-[var(--text)]' : 'text-amber-400'}">
+						{ped.fecha_instalacion ? fmtFecha(ped.fecha_instalacion) : 'Sin agendar'}
+						{#if semInstalacion && ped.fecha_instalacion}
+							<span class="text-[10px] text-[var(--text-dim)]">· {semInstalacion.label}</span>
+						{/if}
+					</p>
+				</div>
+			{/if}
+
+			{#if ped.direccion_entrega}
+				<p class="mt-1.5 truncate text-[10px] text-[var(--text-dim)]" title={ped.direccion_entrega}>
+					📍 {ped.direccion_entrega}
+				</p>
+			{/if}
 		</div>
 		<!-- Progreso -->
 		<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
@@ -419,7 +537,276 @@
 				</div>
 			{/if}
 
-			<!-- ── TIMELINE ── -->
+			<!-- ── MATERIAL / PROVEEDORES ── -->
+		{#if esAdmin || esFinanzas || esFabricador}
+			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+				<div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-5 py-3">
+					<div>
+						<h2 class="text-sm font-medium text-[var(--text)]">Material y proveedores</h2>
+						<p class="mt-0.5 text-[10px] text-[var(--text-dim)]">
+							{#if compras.length === 0}
+								Sin material registrado — no se puede saber qué frena el pedido
+							{:else}
+								{mat.recibidos}/{mat.total} recibido{mat.total === 1 ? '' : 's'}
+								{#if puedeVerPrecios}
+									· costo real {fmt(costoMaterialReal)}
+									{#if costoFab > 0}
+										<span class={costoMaterialReal > costoFab ? 'text-red-400' : 'text-green-400'}>
+											(estimado {fmt(costoFab)})
+										</span>
+									{/if}
+								{/if}
+							{/if}
+						</p>
+					</div>
+					{#if (esAdmin || esFinanzas) && !agregandoMaterial}
+						<button
+							onclick={() => { agregandoMaterial = true; limpiarMaterial() }}
+							class="btn-secondary flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px]"
+						>
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+							Agregar material
+						</button>
+					{/if}
+				</div>
+
+				<!-- Alerta: el material llega después de la fecha prometida -->
+				{#if mat.riesgo}
+					<div class="flex items-start gap-2 border-b border-red-500/25 bg-red-500/5 px-5 py-3">
+						<svg class="mt-0.5 shrink-0 text-red-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+						<p class="text-xs text-red-300">
+							Hay material que llega <strong>después</strong> de la fecha de entrega ({fmtFecha(ped.fecha_entrega)}).
+							Mueve la fecha con el cliente o busca otro proveedor.
+						</p>
+					</div>
+				{/if}
+
+				<!-- Formulario: registrar material -->
+				{#if agregandoMaterial}
+					<form method="POST" action="?/crearCompra" use:enhance={() => {
+						return async ({ result }) => {
+							if (result.type === 'success') {
+								mostrarToast('Material registrado')
+								agregandoMaterial = false
+								limpiarMaterial()
+								invalidateAll()
+							} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+								mostrarToast(result.data.error, 'error')
+							}
+						}
+					}} class="border-b border-[var(--border)] bg-[var(--bg-card-2)] px-5 py-4 space-y-3">
+						<input type="hidden" name="pedido_id" value={ped.id} />
+
+						<div class="grid gap-3 sm:grid-cols-2">
+							<div class="sm:col-span-2">
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Material *</label>
+								<input
+									type="text"
+									name="material"
+									bind:value={matMaterial}
+									required
+									placeholder="Ej: Acrílico 3mm transparente"
+									class="input-field w-full"
+								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Cantidad</label>
+								<input
+									type="text"
+									name="cantidad"
+									bind:value={matCantidad}
+									placeholder="2 láminas, 6 m..."
+									class="input-field w-full"
+								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Proveedor</label>
+								<select name="proveedor_id" bind:value={matProveedor} class="input-field w-full">
+									<option value="">Sin definir</option>
+									{#each proveedores as p}
+										<option value={p.id}>{p.nombre}</option>
+									{/each}
+								</select>
+								<button
+									type="button"
+									onclick={() => (creandoProveedor = true)}
+									class="mt-1 text-[10px] text-[var(--brand-light)] hover:underline"
+								>+ Nuevo proveedor</button>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Para el producto</label>
+								<select name="pedido_item_id" bind:value={matItem} class="input-field w-full">
+									<option value="">Todo el pedido</option>
+									{#each items as it}
+										<option value={it.id}>{it.tipo_label} — {it.descripcion.slice(0, 32)}</option>
+									{/each}
+								</select>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Estado</label>
+								<select name="estado" bind:value={matEstado} class="input-field w-full">
+									{#each ESTADOS_COMPRA as e}
+										<option value={e}>{ESTADO_COMPRA_LABEL[e]}</option>
+									{/each}
+								</select>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Costo real</label>
+								<div class="relative">
+									<span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-dim)]">$</span>
+									<input type="number" name="costo_real" bind:value={matCosto} min="0" class="input-field w-full !pl-8" />
+								</div>
+							</div>
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Llega el</label>
+								<input type="date" name="fecha_estimada" bind:value={matFechaEstimada} class="input-field w-full" />
+								{#if matFechaEstimada && ped.fecha_entrega && matFechaEstimada > ped.fecha_entrega}
+									<p class="mt-1 text-[10px] text-red-400">Llega después de la entrega</p>
+								{/if}
+							</div>
+						</div>
+
+						<div class="flex gap-2">
+							<button
+								type="submit"
+								disabled={!matMaterial.trim()}
+								class="btn-primary rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-40"
+							>Registrar</button>
+							<button
+								type="button"
+								onclick={() => { agregandoMaterial = false; limpiarMaterial() }}
+								class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+							>Cancelar</button>
+						</div>
+					</form>
+				{/if}
+
+				<!-- Lista de material -->
+				{#if compras.length === 0}
+					<div class="px-5 py-8 text-center">
+						<p class="text-sm text-[var(--text-dim)]">Sin material registrado</p>
+						{#if esAdmin || esFinanzas}
+							<p class="mx-auto mt-1 max-w-sm text-[11px] text-[var(--text-dim)]">
+								Registra lo que hay que comprar y a quién. Así se ve de una cuál pedido está
+								esperando proveedor y cuánto costó de verdad.
+							</p>
+						{/if}
+					</div>
+				{:else}
+					<ul class="divide-y divide-[var(--border)]">
+						{#each compras as c (c.id)}
+							{@const prov = (c as any).proveedores}
+							{@const tarde = c.estado !== 'recibido' && c.fecha_estimada && ped.fecha_entrega && c.fecha_estimada > ped.fecha_entrega}
+							{@const diasLlegada = c.estado !== 'recibido' ? diasHasta(c.fecha_estimada) : null}
+							<li class="px-5 py-3">
+								<div class="flex flex-wrap items-start gap-3">
+									<div class="min-w-0 flex-1">
+										<div class="flex flex-wrap items-center gap-2">
+											<span class="text-sm font-medium text-[var(--text)]">{c.material}</span>
+											{#if c.cantidad}
+												<span class="text-[11px] text-[var(--text-dim)]">{c.cantidad}</span>
+											{/if}
+											<span class="rounded-full border px-2 py-0.5 text-[10px] font-medium {compraEstadoColor[c.estado] ?? ''}">
+												{ESTADO_COMPRA_LABEL[c.estado as EstadoCompra] ?? c.estado}
+											</span>
+											{#if tarde}
+												<span class="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+													llega tarde
+												</span>
+											{/if}
+										</div>
+
+										<div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-dim)]">
+											{#if prov}
+												<span>{prov.nombre}</span>
+												{#if prov.contacto}
+													<a
+														href={`https://wa.me/${prov.contacto.replace(/\D/g, '')}`}
+														target="_blank"
+														rel="noopener noreferrer"
+														class="text-green-400 hover:underline"
+													>escribir</a>
+												{/if}
+											{:else}
+												<span class="text-amber-400/80">sin proveedor</span>
+											{/if}
+											{#if c.fecha_pedido}
+												<span>pedido {fmtFecha(c.fecha_pedido)}</span>
+											{/if}
+											{#if c.fecha_estimada && c.estado !== 'recibido'}
+												<span class={tarde ? 'text-red-400' : ''}>
+													llega {fmtFecha(c.fecha_estimada)}{#if diasLlegada !== null}
+														· {diasLlegada < 0 ? `atrasado ${Math.abs(diasLlegada)}d` : diasLlegada === 0 ? 'hoy' : `en ${diasLlegada}d`}
+													{/if}
+												</span>
+											{/if}
+											{#if c.fecha_recibido}
+												<span class="text-green-400">recibido {fmtFecha(c.fecha_recibido)}</span>
+											{/if}
+											{#if puedeVerPrecios && Number(c.costo_real) > 0}
+												<span class="text-[var(--warning)]">{fmt(c.costo_real)}</span>
+											{/if}
+										</div>
+									</div>
+
+									<!-- Cambiar estado: el fabricador marca recibido cuando llega -->
+									<div class="flex shrink-0 items-center gap-2">
+										<form method="POST" action="?/actualizarCompra" use:enhance={() => {
+											return async ({ result }) => {
+												if (result.type === 'success') {
+													mostrarToast('Material actualizado')
+													invalidateAll()
+												} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+													mostrarToast(result.data.error, 'error')
+												}
+											}
+										}}>
+											<input type="hidden" name="pedido_id" value={ped.id} />
+											<input type="hidden" name="compra_id" value={c.id} />
+											<select
+												name="estado"
+												onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
+												class="input-field rounded-lg py-1 text-xs"
+												aria-label="Estado del material"
+											>
+												{#each ESTADOS_COMPRA as e}
+													<option value={e} selected={c.estado === e}>{ESTADO_COMPRA_LABEL[e]}</option>
+												{/each}
+											</select>
+										</form>
+
+										{#if esAdmin || esFinanzas}
+											<form method="POST" action="?/eliminarCompra" use:enhance={() => {
+												return async ({ result }) => {
+													if (result.type === 'success') {
+														mostrarToast('Material eliminado')
+														invalidateAll()
+													}
+												}
+											}}>
+												<input type="hidden" name="pedido_id" value={ped.id} />
+												<input type="hidden" name="compra_id" value={c.id} />
+												<button
+													type="submit"
+													onclick={(e) => { if (!confirm(`¿Eliminar "${c.material}"?`)) e.preventDefault() }}
+													class="text-[var(--text-dim)] hover:text-red-400 transition-colors"
+													title="Eliminar material"
+													aria-label="Eliminar material"
+												>
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+												</button>
+											</form>
+										{/if}
+									</div>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── TIMELINE ── -->
 			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
 				<div class="border-b border-[var(--border)] px-5 py-3">
 					<h2 class="text-sm font-medium text-[var(--text)]">Actividad</h2>
@@ -463,15 +850,12 @@
 							{#each notas as nota, idx (nota.id)}
 								{@const autor = (nota as any).perfiles}
 								{@const tipo = tipoNota(nota.contenido)}
+								{@const est = notaEstilo[tipo]}
 								{@const esUltimo = idx === notas.length - 1}
 								<div class="relative pb-4 {esUltimo ? 'pb-0' : ''}">
 									<!-- Punto del timeline -->
-									<div class="absolute -left-6 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full
-										{tipo === 'estado' ? 'bg-blue-500/20' : tipo === 'diseno' ? 'bg-purple-500/20' : tipo === 'asignacion' ? 'bg-orange-500/20' : tipo === 'edicion' ? 'bg-yellow-500/20' : tipo === 'abono' ? 'bg-green-500/20' : 'bg-[var(--bg-card-2)]'}
-									">
-										<div class="h-1.5 w-1.5 rounded-full
-											{tipo === 'estado' ? 'bg-blue-400' : tipo === 'diseno' ? 'bg-purple-400' : tipo === 'asignacion' ? 'bg-orange-400' : tipo === 'edicion' ? 'bg-yellow-400' : tipo === 'abono' ? 'bg-green-400' : 'bg-[var(--text-dim)]'}
-										"></div>
+									<div class="absolute -left-6 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full {est.halo}">
+										<div class="h-1.5 w-1.5 rounded-full {est.punto}"></div>
 									</div>
 
 									<!-- Contenido -->
@@ -481,10 +865,8 @@
 											<span>·</span>
 											<span>{fmtRelativa(nota.created_at)}</span>
 											{#if tipo !== 'nota'}
-												<span class="rounded px-1 py-0.5 text-[9px]
-													{tipo === 'estado' ? 'bg-blue-500/10 text-blue-400' : tipo === 'diseno' ? 'bg-purple-500/10 text-purple-400' : tipo === 'asignacion' ? 'bg-orange-500/10 text-orange-400' : tipo === 'edicion' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'}
-												">
-													{tipo === 'estado' ? 'Estado' : tipo === 'diseno' ? 'Diseño' : tipo === 'asignacion' ? 'Asignación' : tipo === 'edicion' ? 'Edición' : 'Abono'}
+												<span class="rounded px-1 py-0.5 text-[9px] {est.chip}">
+													{est.label}
 												</span>
 											{/if}
 										</div>
@@ -700,6 +1082,145 @@
 				</div>
 			{/if}
 
+			<!-- Entrega: cierre del pedido con evidencia -->
+			{#if esAdmin || esFabricador}
+				<div class="rounded-xl border bg-[var(--bg-card)] p-5 {entregado ? 'border-emerald-500/30' : listoParaEntregar ? 'border-[var(--brand)]/40' : 'border-[var(--border)]'}">
+					<h2 class="text-sm font-medium text-[var(--text)]">
+						{ped.requiere_instalacion ? 'Entrega e instalación' : 'Entrega'}
+					</h2>
+
+					{#if entregado}
+						<div class="mt-3 space-y-2">
+							<p class="flex items-center gap-2 text-sm text-emerald-400">
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+								Entregado
+							</p>
+							{#if ped.fecha_entregado}
+								<p class="text-[11px] text-[var(--text-dim)]">
+									{fmtFecha(ped.fecha_entregado)}
+									{#if ped.fecha_entrega}
+										<span class={ped.fecha_entregado.slice(0, 10) > ped.fecha_entrega ? 'text-amber-400' : 'text-green-400'}>
+											· {ped.fecha_entregado.slice(0, 10) > ped.fecha_entrega ? 'fuera de fecha' : 'a tiempo'}
+										</span>
+									{/if}
+								</p>
+							{/if}
+							{#if ped.foto_entrega_url}
+								<img
+									src={ped.foto_entrega_url}
+									alt="Evidencia de entrega"
+									class="mt-1 max-h-40 w-full rounded-lg border border-[var(--border)] bg-[#080808] object-contain"
+								/>
+							{/if}
+
+							{#if esAdmin}
+								<form method="POST" action="?/marcarEntregado" use:enhance={() => {
+									return async ({ result }) => {
+										if (result.type === 'success') {
+											mostrarToast('Entrega deshecha')
+											invalidateAll()
+										}
+									}
+								}}>
+									<input type="hidden" name="pedido_id" value={ped.id} />
+									<input type="hidden" name="deshacer" value="true" />
+									<button
+										type="submit"
+										onclick={(e) => { if (!confirm('¿Deshacer la entrega? El pedido vuelve a Terminado.')) e.preventDefault() }}
+										class="mt-1 text-[11px] text-[var(--text-dim)] transition-colors hover:text-red-400"
+									>Deshacer entrega</button>
+								</form>
+							{/if}
+						</div>
+					{:else}
+						<p class="mt-1 text-[11px] text-[var(--text-dim)]">
+							{#if items.length === 0}
+								Agrega productos al pedido primero
+							{:else if !listoParaEntregar}
+								Faltan {items.length - terminados} item{items.length - terminados === 1 ? '' : 's'} por terminar
+							{:else if Number(ped.saldo) > 0}
+								Listo para entregar · saldo pendiente {fmt(ped.saldo)}
+							{:else}
+								Listo para entregar y pagado
+							{/if}
+						</p>
+
+						{#if !confirmandoEntrega}
+							<button
+								onclick={() => { confirmandoEntrega = true; fotoEntrega = '' }}
+								disabled={items.length === 0}
+								class="mt-3 w-full rounded-lg py-2 text-sm font-medium disabled:opacity-40 {listoParaEntregar ? 'btn-primary' : 'btn-secondary'}"
+							>Marcar como entregado</button>
+						{:else}
+							<div class="mt-3 space-y-3">
+								{#if fotoEntrega}
+									<div class="relative overflow-hidden rounded-lg border border-[var(--border)]">
+										<img src={fotoEntrega} alt="Evidencia" class="max-h-40 w-full bg-[#080808] object-contain" />
+										<button
+											type="button"
+											onclick={() => (fotoEntrega = '')}
+											class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-white/80 transition-colors hover:text-red-400"
+											title="Quitar foto"
+											aria-label="Quitar foto"
+										>
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+										</button>
+									</div>
+								{:else}
+									<label class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-white/12 bg-white/2 p-4 transition-all hover:border-white/25">
+										<input
+											type="file"
+											accept="image/*"
+											capture="environment"
+											class="hidden"
+											onchange={async (e) => {
+												const input = e.target as HTMLInputElement
+												const file = input.files?.[0]
+												if (!file) return
+												const { url, error } = await subirImagenComprimida(file, 'disenos')
+												if (error) {
+													mostrarToast('Error al subir imagen: ' + error, 'error')
+													return
+												}
+												fotoEntrega = url
+												mostrarToast('Foto subida')
+											}}
+										/>
+										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--text-dim)]"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+										<span class="text-xs font-medium text-[var(--text-muted)]">Foto de la entrega</span>
+										<span class="text-[10px] text-[var(--text-dim)]">Opcional, sirve de respaldo</span>
+									</label>
+								{/if}
+
+								<form method="POST" action="?/marcarEntregado" use:enhance={() => {
+									return async ({ result }) => {
+										if (result.type === 'success') {
+											mostrarToast('Pedido entregado')
+											confirmandoEntrega = false
+											fotoEntrega = ''
+											invalidateAll()
+										} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+											mostrarToast(result.data.error, 'error')
+										}
+									}
+								}} class="flex gap-2">
+									<input type="hidden" name="pedido_id" value={ped.id} />
+									<input type="hidden" name="foto_entrega_url" value={fotoEntrega} />
+									<button type="submit" class="btn-primary flex-1 rounded-lg py-1.5 text-sm font-medium">
+										Confirmar entrega
+									</button>
+									<button
+										type="button"
+										onclick={() => { confirmandoEntrega = false; fotoEntrega = '' }}
+										class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+									>Cancelar</button>
+								</form>
+							</div>
+						{/if}
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Cliente -->
 			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
 				<h2 class="mb-3 text-sm font-medium text-[var(--text)]">Cliente</h2>
@@ -772,6 +1293,44 @@
 								<input type="date" name="fecha_entrega" bind:value={editFechaEntrega} class="input-field w-full" />
 							</div>
 							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Dirección de entrega</label>
+								<input
+									type="text"
+									name="direccion_entrega"
+									bind:value={editDireccion}
+									placeholder="Dónde se entrega o instala..."
+									class="input-field w-full"
+								/>
+							</div>
+
+							<!-- Instalación: solo si el cliente la pidió -->
+							<label class="flex cursor-pointer items-center gap-2">
+								<input
+									type="checkbox"
+									name="requiere_instalacion"
+									value="true"
+									bind:checked={editRequiereInstalacion}
+									class="h-4 w-4 accent-[var(--brand)]"
+								/>
+								<span class="text-xs text-[var(--text)]">El cliente pide instalación</span>
+							</label>
+							{#if editRequiereInstalacion}
+								<div>
+									<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Fecha de instalación</label>
+									<input type="date" name="fecha_instalacion" bind:value={editFechaInstalacion} class="input-field w-full" />
+								</div>
+							{/if}
+
+							<div>
+								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Prioridad</label>
+								<select name="prioridad" bind:value={editPrioridad} class="input-field w-full">
+									<option value={0}>Normal</option>
+									<option value={1}>Alta</option>
+									<option value={2}>Urgente</option>
+								</select>
+							</div>
+
+							<div>
 								<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Nota</label>
 								<textarea name="nota" bind:value={editNota} rows="2" class="input-field w-full resize-none"></textarea>
 							</div>
@@ -783,6 +1342,32 @@
 								<dt class="text-[var(--text-muted)]">Entrega</dt>
 								<dd class="text-[var(--text)]">{ped.fecha_entrega ? fmtFecha(ped.fecha_entrega) : '—'}</dd>
 							</div>
+							<div class="flex justify-between">
+								<dt class="text-[var(--text-muted)]">Instalación</dt>
+								<dd class="text-[var(--text)]">
+									{#if !ped.requiere_instalacion}
+										<span class="text-[var(--text-dim)]">No requiere</span>
+									{:else if ped.fecha_instalacion}
+										{fmtFecha(ped.fecha_instalacion)}
+									{:else}
+										<span class="text-amber-400">Sin agendar</span>
+									{/if}
+								</dd>
+							</div>
+							{#if Number(ped.prioridad ?? 0) > 0}
+								<div class="flex justify-between">
+									<dt class="text-[var(--text-muted)]">Prioridad</dt>
+									<dd class={Number(ped.prioridad) === 2 ? 'text-red-400' : 'text-orange-400'}>
+										{Number(ped.prioridad) === 2 ? 'Urgente' : 'Alta'}
+									</dd>
+								</div>
+							{/if}
+							{#if ped.direccion_entrega}
+								<div>
+									<dt class="text-[var(--text-muted)]">Dirección</dt>
+									<dd class="mt-0.5 text-[var(--text)]">{ped.direccion_entrega}</dd>
+								</div>
+							{/if}
 							{#if ped.nota}
 								<div>
 									<dt class="text-[var(--text-muted)]">Nota</dt>
@@ -810,6 +1395,62 @@
 		</div>
 	</div>
 </div>
+
+<!-- Modal: Nuevo proveedor -->
+{#if creandoProveedor}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick={() => (creandoProveedor = false)}>
+		<div class="mx-4 w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-base font-semibold text-[var(--text)]">Nuevo proveedor</h3>
+			<p class="mt-1 text-xs text-[var(--text-muted)]">Queda disponible para todos los pedidos</p>
+
+			<form method="POST" action="?/crearProveedor" use:enhance={() => {
+				return async ({ result }) => {
+					if (result.type === 'success') {
+						mostrarToast('Proveedor creado')
+						creandoProveedor = false
+						provNombre = ''
+						provContacto = ''
+						provMateriales = ''
+						invalidateAll()
+					} else if (result.type === 'failure' && result.data && typeof result.data.error === 'string') {
+						mostrarToast(result.data.error, 'error')
+					}
+				}
+			}} class="mt-4 space-y-3">
+				<div>
+					<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Nombre *</label>
+					<input type="text" name="nombre" bind:value={provNombre} required class="input-field w-full" />
+				</div>
+				<div>
+					<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Teléfono / WhatsApp</label>
+					<input type="text" name="contacto" bind:value={provContacto} class="input-field w-full" />
+				</div>
+				<div>
+					<label class="mb-1 block text-[10px] text-[var(--text-muted)]">Qué vende</label>
+					<input
+						type="text"
+						name="materiales"
+						bind:value={provMateriales}
+						placeholder="Acrílico, PVC, LED, vinilo..."
+						class="input-field w-full"
+					/>
+				</div>
+				<div class="flex justify-end gap-2 pt-1">
+					<button
+						type="button"
+						onclick={() => (creandoProveedor = false)}
+						class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-card-2)]"
+					>Cancelar</button>
+					<button
+						type="submit"
+						disabled={!provNombre.trim()}
+						class="btn-primary rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-40"
+					>Crear</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <!-- Modal: Subir diseño -->
 {#if subiendoDiseno}

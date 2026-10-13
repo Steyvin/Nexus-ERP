@@ -30,6 +30,12 @@
 	let bancoAbono = $state('')
 	let guardando = $state(false)
 
+	// ── Entrega / instalación ──
+	let requiereInstalacion = $state(false)
+	let direccionEntrega = $state('')
+	let fechaInstalacion = $state('')
+	let prioridad = $state(0)
+
 	const bancos = $derived(data.bancos ?? [])
 
 	// ── Nuevo cliente inline ──
@@ -168,7 +174,11 @@
 				precio_total: Math.round(precioTotal),
 				abono,
 				fecha_entrega: fechaEntrega || null,
-				nota: nota.trim() || null
+				nota: nota.trim() || null,
+				requiere_instalacion: requiereInstalacion,
+				direccion_entrega: direccionEntrega.trim() || null,
+				fecha_instalacion: requiereInstalacion ? fechaInstalacion || null : null,
+				prioridad
 			})
 			.select('id')
 			.single()
@@ -541,15 +551,75 @@
 				{/if}
 			</div>
 
-			<!-- Fecha de entrega -->
-			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
-				<label for="entrega" class="mb-2 block text-sm font-medium text-[var(--text)]">Fecha de entrega</label>
-				<input
-					id="entrega"
-					type="date"
-					bind:value={fechaEntrega}
-					class="input-field w-full"
-				/>
+			<!-- Entrega e instalación -->
+			<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 space-y-4">
+				<div>
+					<label for="entrega" class="mb-2 block text-sm font-medium text-[var(--text)]">Fecha de entrega</label>
+					<input
+						id="entrega"
+						type="date"
+						bind:value={fechaEntrega}
+						class="input-field w-full"
+					/>
+					{#if !fechaEntrega}
+						<p class="mt-1.5 text-[10px] text-amber-400/90">
+							Sin fecha el pedido no aparece en la agenda ni en el semaforo.
+						</p>
+					{/if}
+				</div>
+
+				<div>
+					<label for="direccion" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+						Direccion de entrega
+					</label>
+					<input
+						id="direccion"
+						type="text"
+						bind:value={direccionEntrega}
+						placeholder="Donde se entrega o instala..."
+						class="input-field w-full"
+					/>
+				</div>
+
+				<!-- Instalacion: solo si el cliente la pide -->
+				<label class="flex cursor-pointer items-start gap-2.5">
+					<input
+						type="checkbox"
+						bind:checked={requiereInstalacion}
+						class="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand)]"
+					/>
+					<span class="text-xs">
+						<span class="block font-medium text-[var(--text)]">El cliente pide instalacion</span>
+						<span class="block text-[10px] text-[var(--text-dim)]">
+							Agenda un dia aparte para ir a instalar
+						</span>
+					</span>
+				</label>
+
+				{#if requiereInstalacion}
+					<div>
+						<label for="instalacion" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+							Fecha de instalacion
+						</label>
+						<input
+							id="instalacion"
+							type="date"
+							bind:value={fechaInstalacion}
+							class="input-field w-full"
+						/>
+					</div>
+				{/if}
+
+				<div>
+					<label for="prioridad" class="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+						Prioridad
+					</label>
+					<select id="prioridad" bind:value={prioridad} class="input-field w-full">
+						<option value={0}>Normal</option>
+						<option value={1}>Alta</option>
+						<option value={2}>Urgente</option>
+					</select>
+				</div>
 			</div>
 
 			<!-- Abono inicial -->
